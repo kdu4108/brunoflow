@@ -7,3 +7,4 @@ A network is an object that associates an autodiff function with some set of tra
 
 from .network import *
 from .linear import *
+from .mlp import *

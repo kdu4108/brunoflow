@@ -19,3 +19,19 @@ class Linear(Network):
 
     def forward(self, x):
         return matmul(x, self.W) + self.b
+
+    def set_weights(self, W: np.ndarray):
+        assert W.shape == self.W.val.shape
+        self.W = Parameter(W)
+
+    def set_bias(self, b: np.ndarray):
+        assert b.shape == self.b.val.shape
+        self.b = Parameter(b)
+
+
+class LinearInitToOne(Linear):
+
+    def __init__(self, input_size, output_size):
+        super(LinearInitToOne, self).__init__(input_size, output_size)
+        self.W = Parameter(np.ones(shape=(input_size, output_size)))
+        self.b = Parameter(np.ones(shape=(output_size,)))
