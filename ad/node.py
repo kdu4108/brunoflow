@@ -1,5 +1,6 @@
 from __future__ import annotations
 import numpy as np
+import numpy.typing as npt
 from typing import Any, List, Tuple, Union
 
 
@@ -40,13 +41,13 @@ class Node:
     ):
         self.val = val
         self.grad = np.zeros_like(val, dtype=np.float64)
-        self.max_grad_of_output_wrt_node: Tuple[np.float64, Node] = (
+        self.max_grad_of_output_wrt_node: Tuple[Union[np.ndarray, np.float64], Union[npt.NDArray[Node], Node]] = (
             np.full_like(val, fill_value=-np.inf, dtype=np.float64),
-            None,
+            np.empty_like(val, dtype=type(None)),
         )
-        self.max_neg_grad_of_output_wrt_node: Tuple[np.float64, Node] = (
+        self.max_neg_grad_of_output_wrt_node: Tuple[Union[np.ndarray, np.float64], Union[npt.NDArray[Node], Node]] = (
             np.full_like(val, fill_value=np.inf, dtype=np.float64),
-            None,
+            np.empty_like(val, dtype=type(None)),
         )
         self.backward_func = backward_func
         self.inputs = inputs
@@ -99,20 +100,21 @@ class Node:
             self.grad = 1.0
             self.max_grad_of_output_wrt_node = (1.0, None)
             self.max_neg_grad_of_output_wrt_node = (1.0, None)
-        print(
-            "in backprop:",
-            self.name,
-            ", num_uses:",
-            self.__num_uses,
-            ", max_grad:",
-            self.max_grad_of_output_wrt_node[0],
-            ", type max_grad:",
-            type(self.max_grad_of_output_wrt_node[0]),
-            ", grad:",
-            self.grad,
-            ", type grad:",
-            type(self.grad),
-        )
+        if verbose:
+            print(
+                "in backprop:",
+                self.name,
+                ", num_uses:",
+                self.__num_uses,
+                ", max_grad:",
+                self.max_grad_of_output_wrt_node[0],
+                ", type max_grad:",
+                type(self.max_grad_of_output_wrt_node[0]),
+                ", grad:",
+                self.grad,
+                ", type grad:",
+                type(self.grad),
+            )
 
         self.__compute_num_uses()
         self.__backprop(verbose=verbose)
@@ -122,17 +124,10 @@ class Node:
         Recursive helper function for self.backprop()
         Assumes that self.__compute_num_uses() has been called in advance
         """
-        print(self.max_grad_of_output_wrt_node[0] >= self.max_neg_grad_of_output_wrt_node[0])
-        assert self.max_grad_of_output_wrt_node[0] >= self.max_neg_grad_of_output_wrt_node[0]
+        assert (self.max_grad_of_output_wrt_node[0] >= self.max_neg_grad_of_output_wrt_node[0]).all()
 
         if verbose:
-            print(
-                self.name,
-                ", num_uses:",
-                self.__num_uses,
-                ", max_grad:",
-                self.max_grad_of_output_wrt_node[0],
-            )
+            print(self.name, ", num_uses:", self.__num_uses, ", max_grad:", self.max_grad_of_output_wrt_node[0])
         # Record that backprop has reached this Node one more time
         self.__num_uses -= 1
         # If backprop has reached this Node as many times as it has been used as an input,
@@ -169,31 +164,47 @@ class Node:
 
                         self.inputs[i].grad += adjoint_gradient
 
-                        # If the max pos grad is less than the max neg grad, that means there was some sign flipping, and we should reverse which is most positive and most negative.
-                        if adj_max_grad < adj_max_neg_grad:
-                            adj_max_grad, adj_max_neg_grad = (
-                                adj_max_neg_grad,
-                                adj_max_grad,
-                            )
-                        if adj_max_grad > self.inputs[i].max_grad_of_output_wrt_node[0]:
-                            if verbose:
-                                print(
-                                    f"replacing max_grad of node {self.inputs[i].name} from {self.inputs[i].max_grad_of_output_wrt_node} to {(adj_max_grad, self.name)}"
-                                )
-                            self.inputs[i].max_grad_of_output_wrt_node = (
-                                adj_max_grad,
-                                self,
+                        # If the max pos grad is less than the max neg grad, that means there was some sign flipping, and we should reverse which is most positive and most negative. Use np.maximum and np.minimum to do this element-wise.
+                        if verbose:
+                            print("adj_max_grad:", adj_max_grad)
+                            print("adj_max_neg_grad:", adj_max_neg_grad)
+                        adj_max_grad, adj_max_neg_grad = np.maximum(adj_max_grad, adj_max_neg_grad), np.minimum(
+                            adj_max_grad, adj_max_neg_grad
+                        )
+
+                        # Replace the current (max grad value, parent) of the ith input node with (max grad value of self, self) for all elements in the ith input node that have higher max grad values in self.
+                        inds_to_replace_max_grad = adj_max_grad > self.inputs[i].max_grad_of_output_wrt_node[0]
+                        prev_vals, prev_parents = np.copy(self.inputs[i].max_grad_of_output_wrt_node[0]), np.copy(
+                            self.inputs[i].max_grad_of_output_wrt_node[1]
+                        )
+                        self.inputs[i].max_grad_of_output_wrt_node[0][inds_to_replace_max_grad] = adj_max_grad[
+                            inds_to_replace_max_grad
+                        ]
+                        self.inputs[i].max_grad_of_output_wrt_node[1][inds_to_replace_max_grad] = self
+                        if verbose:
+                            print(
+                                f"replacing max_grad of node {self.inputs[i].name} from {(prev_vals, prev_parents)} to {self.inputs[i].max_grad_of_output_wrt_node}"
                             )
 
-                        if adj_max_neg_grad < self.inputs[i].max_neg_grad_of_output_wrt_node[0]:
-                            if verbose:
-                                print(
-                                    f"replacing max_neg_grad of node {self.inputs[i].name} from {self.inputs[i].max_neg_grad_of_output_wrt_node} to {(adj_max_neg_grad, self.name)}"
-                                )
-                            self.inputs[i].max_neg_grad_of_output_wrt_node = (
-                                adj_max_neg_grad,
-                                self,
+                        # Replace the current (max neg grad value, parent) of the ith input node with (max neg grad value of self, self) for all elements in the ith input node that have more negative max neg grad values in self.
+                        inds_to_replace_max_neg_grad = (
+                            adj_max_neg_grad < self.inputs[i].max_neg_grad_of_output_wrt_node[0]
+                        )
+                        prev_vals, prev_parents = np.copy(self.inputs[i].max_neg_grad_of_output_wrt_node[0]), np.copy(
+                            self.inputs[i].max_neg_grad_of_output_wrt_node[1]
+                        )
+                        self.inputs[i].max_neg_grad_of_output_wrt_node[0][
+                            inds_to_replace_max_neg_grad
+                        ] = adj_max_neg_grad[inds_to_replace_max_neg_grad]
+                        self.inputs[i].max_neg_grad_of_output_wrt_node[1][inds_to_replace_max_neg_grad] = self
+                        if verbose:
+                            print(
+                                f"replacing max_neg_grad of node {self.inputs[i].name} from {(prev_vals, prev_parents)} to {self.inputs[i].max_neg_grad_of_output_wrt_node}"
                             )
+                        # if adj_max_neg_grad < self.inputs[i].max_neg_grad_of_output_wrt_node[0]:
+                        #     if verbose:
+                        #         print(f"replacing max_neg_grad of node {self.inputs[i].name} from {self.inputs[i].max_neg_grad_of_output_wrt_node} to {(adj_max_neg_grad, self.name)}")
+                        #     self.inputs[i].max_neg_grad_of_output_wrt_node = (adj_max_neg_grad, self)
 
             # Continue recursively backpropagating
             for inp in self.inputs:
