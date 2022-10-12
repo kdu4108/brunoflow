@@ -3,9 +3,11 @@ This module defines functions that perform tensor reductions
 """
 
 import numpy as np
+from brunoflow.ad import name
 from .function import make_function
 from . import math
 from .shape import expand_dims
+
 
 def reduce_min(x, axis=None):
     """
@@ -25,6 +27,8 @@ def reduce_min(x, axis=None):
     PyTorch equivalent: torch.min
     """
     return _reduce_min(x, axis)
+
+
 def reduce_min_backward(out_val, out_grad, x, axis=None):
     grad = np.zeros_like(x)
     if axis is None:
@@ -36,11 +40,11 @@ def reduce_min_backward(out_val, out_grad, x, axis=None):
         min_indices = np.expand_dims(min_indices, axis)
         out_grad = np.expand_dims(out_grad, axis)
         np.put_along_axis(grad, min_indices, out_grad, axis)
-    return grad, None    
-_reduce_min = make_function(
-    lambda x, axis: x.min(axis=axis),
-    reduce_min_backward
-)
+    return grad, None
+
+
+_reduce_min = make_function(lambda x, axis: x.min(axis=axis), reduce_min_backward)
+
 
 def reduce_max(x, axis=None):
     """
@@ -60,6 +64,8 @@ def reduce_max(x, axis=None):
     PyTorch equivalent: torch.max
     """
     return _reduce_max(x, axis)
+
+
 def reduce_max_backward(out_val, out_grad, x, axis=None):
     grad = np.zeros_like(x)
     if axis is None:
@@ -71,11 +77,11 @@ def reduce_max_backward(out_val, out_grad, x, axis=None):
         min_indices = np.expand_dims(min_indices, axis)
         out_grad = np.expand_dims(out_grad, axis)
         np.put_along_axis(grad, min_indices, out_grad, axis)
-    return grad, None    
-_reduce_max = make_function(
-    lambda x, axis: x.max(axis=axis),
-    reduce_max_backward
-)
+    return grad, None
+
+
+_reduce_max = make_function(lambda x, axis: x.max(axis=axis), reduce_max_backward)
+
 
 def reduce_sum(x, axis=None):
     """
@@ -95,16 +101,22 @@ def reduce_sum(x, axis=None):
     PyTorch equivalent: torch.sum
     """
     return _reduce_sum(x, axis)
+
+
 def reduce_sum_backward(out_val, out_grad, x, axis=None):
     if axis is None:
         return np.full(x.shape, out_grad), None
     else:
         stacks = [out_grad for i in range(x.shape[axis])]
         return np.stack(stacks, axis), None
+
+
 _reduce_sum = make_function(
     lambda x, axis: np.sum(x, axis=axis),
-    reduce_sum_backward
+    reduce_sum_backward,
+    lambda x, axis: f"(sum {name(x)} axis={axis})",
 )
+
 
 def reduce_mean(x, axis=None):
     """
@@ -125,6 +137,7 @@ def reduce_mean(x, axis=None):
     """
     n = x.size if axis is None else x.shape[axis]
     return reduce_sum(x, axis) / n
+
 
 def reduce_var(x, axis=None):
     """
@@ -148,7 +161,8 @@ def reduce_var(x, axis=None):
         diff = x - mean
     else:
         diff = x - expand_dims(mean, axis)
-    return reduce_mean(diff*diff, axis)
+    return reduce_mean(diff * diff, axis)
+
 
 def reduce_std(x, axis=None):
     """
@@ -168,6 +182,7 @@ def reduce_std(x, axis=None):
     PyTorch equivalent: torch.std
     """
     return math.sqrt(reduce_var(x, axis))
+
 
 def reduce_logsumexp(x, axis=None):
     """

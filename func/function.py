@@ -2,11 +2,12 @@
 This module contains the code for defining new autodiff functions.
 """
 
-from collections.abc import Iterable 
+from collections.abc import Iterable
 import numpy as np
 from .. import ad
 
-def make_function(forward, backward=None):
+
+def make_function(forward, backward=None, name_fct=None):
     """
     Define a new autodiff function.
 
@@ -25,7 +26,7 @@ def make_function(forward, backward=None):
             Returns:
                 The gradient of the loss w.r.t. each input of the forward pass function.
             Example: if forward = lambda x: sin(x), then
-                backward = lambda out_val, out_grad, x: out_grad * -cos(x) 
+                backward = lambda out_val, out_grad, x: out_grad * -cos(x)
     """
 
     def backward_wrapper(*args):
@@ -46,8 +47,10 @@ def make_function(forward, backward=None):
         in_vals = [ad.value(a) for a in args]
         # Apply the forward function
         out_val = forward(*in_vals)
+        # print("args:", args)
+        name = name_fct(*args) if name_fct is not None else None
         # Return a Node which has all the information necessary to perform the backward pass
-        return ad.Node(out_val, backward_wrapper if backward else None, args)
+        return ad.Node(out_val, backward_wrapper if backward else None, inputs=args, name=name)
 
     return autodiff_function
 
@@ -55,7 +58,7 @@ def make_function(forward, backward=None):
 def pointwise_backward(pointwise_back_fn):
     """
     For functions that operate pointwise on tensors, the backward function always takes a particular form:
-    
+
     backward = lambda out_val, out_grad, x: out_grad * <some function of out_val and x>
 
     In this case, we make the job of the function author a little easier by only requiring them to define
@@ -67,16 +70,18 @@ def pointwise_backward(pointwise_back_fn):
         local_adjoints = pointwise_back_fn(out_val, *input_vals)
         # Make sure the returned adjoints are a list we can iterate over
         if not isinstance(local_adjoints, Iterable) or isinstance(local_adjoints, np.ndarray):
-            local_adjoints  = [local_adjoints]
+            local_adjoints = [local_adjoints]
         # Multiply each returned adjoint by out_grad
-        return [ladj * out_grad if (ladj is not None) else None for i,ladj in enumerate(local_adjoints)]
-    
+        return [ladj * out_grad if (ladj is not None) else None for i, ladj in enumerate(local_adjoints)]
+
     return backward_func
 
 
 # Map from numpy pointwise functions to Bluenoflow equivalent (used by ufunc_handler below)
 # This will be populated by the other sub-modules of this module which define various functions.
 ad.Node.__np2bf = {}
+
+
 def ufunc_handler(self, ufunc, method, *inputs, **kwargs):
     """
     We would like to allow users to call Bluenoflow functions on a mix of Node and numpy.ndarray
@@ -103,9 +108,11 @@ def ufunc_handler(self, ufunc, method, *inputs, **kwargs):
     # We only recognize ufuncs that have a Bluenoflow equivalent
     if not (ufunc in ad.Node.__np2bf):
         return NotImplemented
-    elif method == '__call__':
+    elif method == "__call__":
         bffunc = ad.Node.__np2bf[ufunc]
         return bffunc(*inputs, **kwargs)
     else:
         return NotImplemented
+
+
 ad.Node.__array_ufunc__ = ufunc_handler

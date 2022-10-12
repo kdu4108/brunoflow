@@ -16,7 +16,8 @@ For binary operators, two additional steps are taken:
 
 import numpy as np
 from .function import make_function, pointwise_backward
-from ..ad import Node
+from ..ad import Node, name
+
 
 def make_scalar_dispatch_op(op):
     def _op(a, b):
@@ -24,26 +25,26 @@ def make_scalar_dispatch_op(op):
             return op(b, a)
         else:
             return NotImplemented
+
     return _op
+
 
 ##################### ARITHMETIC #####################
 
-neg = make_function(
-    lambda x: -x,
-    pointwise_backward(lambda out, x: -1)
-)
+neg = make_function(lambda x: -x, pointwise_backward(lambda out, x: -1))
 Node.__neg__ = neg
 
 abs_ = abs
 abs = make_function(
     lambda x: abs_(x),
-    pointwise_backward(lambda out, x: np.where(x >=0, np.ones_like(x), -np.ones_like(x)))
+    pointwise_backward(lambda out, x: np.where(x >= 0, np.ones_like(x), -np.ones_like(x))),
 )
 Node.__abs__ = abs
 
 add = make_function(
     lambda a, b: a + b,
-    pointwise_backward(lambda out, a, b: (1, 1))
+    pointwise_backward(lambda out, a, b: (1, 1)),
+    lambda a, b: f"(+ {name(a)} {name(b)})",
 )
 Node.__add__ = add
 Node.__radd__ = make_scalar_dispatch_op(add)
@@ -51,7 +52,8 @@ Node.__np2bf[np.add] = add
 
 sub = make_function(
     lambda a, b: a - b,
-    pointwise_backward(lambda out, a, b: (1, -1))
+    pointwise_backward(lambda out, a, b: (1, -1)),
+    lambda a, b: f"(- {name(a)} {name(b)})",
 )
 Node.__sub__ = sub
 Node.__rsub__ = make_scalar_dispatch_op(sub)
@@ -59,7 +61,8 @@ Node.__np2bf[np.subtract] = sub
 
 mul = make_function(
     lambda a, b: a * b,
-    pointwise_backward(lambda out, a, b: (b, a))
+    pointwise_backward(lambda out, a, b: (b, a)),
+    lambda a, b: f"(* {name(a)} {name(b)})",
 )
 Node.__mul__ = mul
 Node.__rmul__ = make_scalar_dispatch_op(mul)
@@ -67,29 +70,26 @@ Node.__np2bf[np.multiply] = mul
 
 truediv = make_function(
     lambda a, b: a / b,
-    pointwise_backward(lambda out, a, b: (1/b, -a/(b*b)))
+    pointwise_backward(lambda out, a, b: (1 / b, -a / (b * b))),
+    lambda a, b: f"(/ {name(a)} {name(b)})",
 )
 Node.__truediv__ = truediv
 Node.__rtruediv__ = make_scalar_dispatch_op(truediv)
 Node.__np2bf[np.true_divide] = truediv
 
-floordiv = make_function(
-    lambda a, b: a // b
-)
+floordiv = make_function(lambda a, b: a // b)
 Node.__floordiv__ = floordiv
 Node.__rfloordiv__ = make_scalar_dispatch_op(floordiv)
 Node.__np2bf[np.floor_divide] = floordiv
 
-mod = make_function(
-    lambda a, b: a % b
-)
+mod = make_function(lambda a, b: a % b)
 Node.__mod__ = mod
 Node.__rmod__ = make_scalar_dispatch_op(mod)
 Node.__np2bf[np.mod] = mod
 
 pow = make_function(
-    lambda a, b: a ** b,
-    pointwise_backward(lambda out, a, b: (b * a**(b-1), np.log(a)*out))
+    lambda a, b: a**b,
+    pointwise_backward(lambda out, a, b: (b * a ** (b - 1), np.log(a) * out)),
 )
 Node.__pow__ = pow
 Node.__rpow__ = make_scalar_dispatch_op(pow)
@@ -97,66 +97,46 @@ Node.__np2bf[np.power] = pow
 
 ##################### LOGICAL #####################
 
-logical_not = make_function(
-    lambda x: ~x
-)
+logical_not = make_function(lambda x: ~x)
 Node.__invert__ = logical_not
 
-logical_and = make_function(
-    lambda a, b: a & b
-)
+logical_and = make_function(lambda a, b: a & b)
 Node.__and__ = logical_and
 Node.__rand__ = make_scalar_dispatch_op(logical_and)
 Node.__np2bf[np.logical_and] = logical_and
 
-logical_or = make_function(
-    lambda a, b: a | b
-)
+logical_or = make_function(lambda a, b: a | b)
 Node.__or__ = logical_or
 Node.__ror__ = make_scalar_dispatch_op(logical_or)
 Node.__np2bf[np.logical_or] = logical_or
 
-logical_xor = make_function(
-    lambda a, b: a ^ b
-)
+logical_xor = make_function(lambda a, b: a ^ b)
 Node.__xor__ = logical_xor
 Node.__rxor__ = make_scalar_dispatch_op(logical_xor)
 Node.__np2bf[np.logical_xor] = logical_xor
 
 ##################### PREDICATES #####################
 
-eq = make_function(
-    lambda a, b: a == b
-)
+eq = make_function(lambda a, b: a == b)
 Node.__eq__ = eq
 Node.__np2bf[np.equal] = eq
 
-ne = make_function(
-    lambda a, b: a != b
-)
+ne = make_function(lambda a, b: a != b)
 Node.__ne__ = ne
 Node.__np2bf[np.not_equal] = ne
 
-lt = make_function(
-    lambda a, b: a < b
-)
+lt = make_function(lambda a, b: a < b)
 Node.__lt__ = lt
 Node.__np2bf[np.less] = lt
 
-le = make_function(
-    lambda a, b: a <= b
-)
+le = make_function(lambda a, b: a <= b)
 Node.__le__ = le
 Node.__np2bf[np.less_equal] = le
 
-gt = make_function(
-    lambda a, b: a > b
-)
+gt = make_function(lambda a, b: a > b)
 Node.__gt__ = gt
 Node.__np2bf[np.greater] = gt
 
-ge = make_function(
-    lambda a, b: a >= b
-)
+ge = make_function(lambda a, b: a >= b)
 Node.__ge__ = ge
 Node.__np2bf[np.greater_equal] = ge

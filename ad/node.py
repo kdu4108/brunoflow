@@ -1,4 +1,7 @@
+from __future__ import annotations
 import numpy as np
+from typing import Any, List, Tuple, Union
+
 
 class Node:
     """
@@ -6,7 +9,7 @@ class Node:
 
     Each Node stores a value and a gradient.
     Nodes are created by calling autodiff functions (the forward pass)
-    The gradient of each Node is computed during the backward passs.
+    The gradient of each Node is computed during the backward pass.
 
     Tensorflow analogue:
         tf.Tensor
@@ -28,17 +31,32 @@ class Node:
         ndim (int): The same as numpy.ndarray.ndim
     """
 
-    def __init__(self, val, backward_func=None, inputs=[]):
+    def __init__(
+        self,
+        val: Union[float, np.ndarray],
+        backward_func=None,
+        inputs: List[Union[Node, np.ndarray, Any]] = [],
+        name: str = None,
+    ):
         self.val = val
-        self.grad = np.zeros_like(val,dtype=np.float64)
+        self.grad = np.zeros_like(val, dtype=np.float64)
+        self.max_grad_of_output_wrt_node: Tuple[np.float64, Node] = (
+            np.full_like(val, fill_value=-np.inf, dtype=np.float64),
+            None,
+        )
+        self.max_neg_grad_of_output_wrt_node: Tuple[np.float64, Node] = (
+            np.full_like(val, fill_value=np.inf, dtype=np.float64),
+            None,
+        )
         self.backward_func = backward_func
         self.inputs = inputs
+        self.name = name
         self.__num_uses = 0
 
     @property
     def shape(self):
         return self.val.shape
-    
+
     @property
     def size(self):
         return self.val.size
@@ -48,7 +66,8 @@ class Node:
         return self.val.ndim
 
     def __str__(self):
-        return f'node(val: {self.val}, grad: {self.grad})'
+        return f"node(name: {self.name}, val: {self.val}, grad: {self.grad})"
+
     def __repr__(self):
         return str(self)
 
@@ -65,42 +84,117 @@ class Node:
                 if isinstance(inp, Node):
                     inp.__compute_num_uses()
 
-    def backprop(self):
+    def backprop(self, verbose=False):
         """
         Initiate a backward pass starting from this Node.
         Computes gradients from every Node reachable from this Node, back to the leaves.
         """
+        # print(f"Entering backprop on node {self.name}:", self)
         if isinstance(self.grad, np.ndarray):
             self.grad.fill(1.0)
+            self.max_grad_of_output_wrt_node[0].fill(1.0)
+            self.max_neg_grad_of_output_wrt_node[0].fill(1.0)
         else:
             # If the grad is a float rather than an np.ndarray
             self.grad = 1.0
-        self.__compute_num_uses()
-        self.__backprop()
+            self.max_grad_of_output_wrt_node = (1.0, None)
+            self.max_neg_grad_of_output_wrt_node = (1.0, None)
+        print(
+            "in backprop:",
+            self.name,
+            ", num_uses:",
+            self.__num_uses,
+            ", max_grad:",
+            self.max_grad_of_output_wrt_node[0],
+            ", type max_grad:",
+            type(self.max_grad_of_output_wrt_node[0]),
+            ", grad:",
+            self.grad,
+            ", type grad:",
+            type(self.grad),
+        )
 
-    def __backprop(self):
+        self.__compute_num_uses()
+        self.__backprop(verbose=verbose)
+
+    def __backprop(self, verbose=False):
         """
         Recursive helper function for self.backprop()
         Assumes that self.__compute_num_uses() has been called in advance
         """
+        print(self.max_grad_of_output_wrt_node[0] >= self.max_neg_grad_of_output_wrt_node[0])
+        assert self.max_grad_of_output_wrt_node[0] >= self.max_neg_grad_of_output_wrt_node[0]
+
+        if verbose:
+            print(
+                self.name,
+                ", num_uses:",
+                self.__num_uses,
+                ", max_grad:",
+                self.max_grad_of_output_wrt_node[0],
+            )
         # Record that backprop has reached this Node one more time
         self.__num_uses -= 1
         # If backprop has reached this Node as many times as it has been used as an input,
         #   then all of its gradients have been accmulated and backprop can continue up the graph.
+        #   It will ONLY continue up the graph once all the grads have been accumulated
         if self.__num_uses == 0:
             backward_func = self.backward_func
+            # The backward_func is the derivative of self with respect to its inputs
             if backward_func:
                 input_vals = [inp.val if isinstance(inp, Node) else inp for inp in self.inputs]
                 # The 'adjoint' is the partial derivative of the final node in the graph
                 #   (typically the loss) w.r.t. the value at this Node.
                 adjoints = backward_func(self.val, self.grad, *input_vals)
-                assert len(input_vals) == len(adjoints)
+
+                # Multiply the max pos grad of self w.r.t. output by the local derivative for each input val
+                adjoints_max_grad = backward_func(self.val, self.max_grad_of_output_wrt_node[0], *input_vals)
+
+                # Multiply the max neg grad of self w.r.t. output by the local derivative for each input val
+                adjoints_max_neg_grad = backward_func(self.val, self.max_neg_grad_of_output_wrt_node[0], *input_vals)
+
+                # print(self.max_grad_of_output_wrt_node[0])
+                assert len(input_vals) == len(adjoints) == len(adjoints_max_grad)
                 # Accumulate these adjoints into the gradients for this Node's inputs
-                for i,adj in enumerate(adjoints):
+                for i in range(len(adjoints)):
+                    adj = adjoints[i]
+                    adj_max_grad = adjoints_max_grad[i]
+                    adj_max_neg_grad = adjoints_max_neg_grad[i]
                     if isinstance(self.inputs[i], Node):
-                        # An adjoint may need to be 'reshaped' before it can be accumulated
-                        #   if the forward operation used broadcasting.
-                        self.inputs[i].grad += reshape_adjoint(adj, self.inputs[i].grad.shape)
+                        # An adjoint may need to be 'reshaped' before it can be accumulated if the forward operation used broadcasting.
+                        # print(f"modifying grad of node {self.inputs[i].name} from {self.inputs[i].grad} to {self.inputs[i].grad + reshape_adjoint(adj, self.inputs[i].grad.shape)}")
+                        adjoint_gradient = reshape_adjoint(adj, self.inputs[i].grad.shape)
+                        adj_max_grad = reshape_adjoint(adj_max_grad, self.inputs[i].grad.shape)
+                        adj_max_neg_grad = reshape_adjoint(adj_max_neg_grad, self.inputs[i].grad.shape)
+
+                        self.inputs[i].grad += adjoint_gradient
+
+                        # If the max pos grad is less than the max neg grad, that means there was some sign flipping, and we should reverse which is most positive and most negative.
+                        if adj_max_grad < adj_max_neg_grad:
+                            adj_max_grad, adj_max_neg_grad = (
+                                adj_max_neg_grad,
+                                adj_max_grad,
+                            )
+                        if adj_max_grad > self.inputs[i].max_grad_of_output_wrt_node[0]:
+                            if verbose:
+                                print(
+                                    f"replacing max_grad of node {self.inputs[i].name} from {self.inputs[i].max_grad_of_output_wrt_node} to {(adj_max_grad, self.name)}"
+                                )
+                            self.inputs[i].max_grad_of_output_wrt_node = (
+                                adj_max_grad,
+                                self,
+                            )
+
+                        if adj_max_neg_grad < self.inputs[i].max_neg_grad_of_output_wrt_node[0]:
+                            if verbose:
+                                print(
+                                    f"replacing max_neg_grad of node {self.inputs[i].name} from {self.inputs[i].max_neg_grad_of_output_wrt_node} to {(adj_max_neg_grad, self.name)}"
+                                )
+                            self.inputs[i].max_neg_grad_of_output_wrt_node = (
+                                adj_max_neg_grad,
+                                self,
+                            )
+
             # Continue recursively backpropagating
             for inp in self.inputs:
                 if isinstance(inp, Node):
@@ -148,7 +242,7 @@ def reshape_adjoint(adj, shape):
         gradient expects a tensor of size (3, 3).
     Thus, we need to sum-reduce the adjoint along the 0-th axis to produce a (3, 3) adjoint.
 
-    Why is sum-reduction the correct thing to do? Broadcasting could be explicitly represented in 
+    Why is sum-reduction the correct thing to do? Broadcasting could be explicitly represented in
         the computation graph as a 'stack' operation that takes in 4 copies of the (3, 3) input
         tensor and produces the (4, 3, 3) output tensor by stacking them along the 0-th axis.
     The stack operation uses the (3, 3) input 4 times, which would result in the adjoint it produces
@@ -168,14 +262,14 @@ def reshape_adjoint(adj, shape):
         return adj
     # Should never happen (because broadcasting only adds dimensions; it doesn't remove them)
     if len(shape) > len(adj.shape):
-        raise ValueError(f'Cannot reshape adjoint with shape {adj.shape} to accumulate into shape {shape}')
+        raise ValueError(f"Cannot reshape adjoint with shape {adj.shape} to accumulate into shape {shape}")
     # Sum along matching dimensions
-    for i in range(1, len(shape)+1):
+    for i in range(1, len(shape) + 1):
         if adj.shape[-i] != shape[-i]:
             if shape[-i] == 1:
                 adj = np.sum(adj, axis=-i, keepdims=True)
             else:
-                raise ValueError(f'Cannot reshape adjoint with shape {adj.shape} to accumulate into shape {shape}')
+                raise ValueError(f"Cannot reshape adjoint with shape {adj.shape} to accumulate into shape {shape}")
     # Sum along extra dimensions that adj has
     if len(adj.shape) > len(shape):
         for i in range(len(adj.shape) - len(shape)):

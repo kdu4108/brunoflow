@@ -5,8 +5,9 @@ The ad module contains all the code that implements the automatic differentiatio
 """
 
 import numpy as np
-from collections.abc import Iterable 
+from collections.abc import Iterable
 from .node import Node
+
 
 def value(x):
     """
@@ -18,11 +19,21 @@ def value(x):
 
     Args:
         x (any): any input value
-    
+
     Returns:
         x.val if x is a Node, otherwise x
     """
     if isinstance(x, Node):
         return x.val
+    else:
+        return x
+
+
+def name(x):
+    """
+    Extract name from an autodiff Node.
+    """
+    if isinstance(x, Node):
+        return x.name
     else:
         return x

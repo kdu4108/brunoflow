@@ -1,15 +1,17 @@
 """
 This module implements common loss functions
 """
+import numpy as np
+import scipy.special as ssp
 
-from ..func import math
+from ..func import math, make_function, pointwise_backward
 from ..func.shape import reshape
 from ..func.reductions import reduce_sum, reduce_mean
 from ..func.activations import log_softmax
 from .. import ad
-import numpy as np
 
-def mse_loss(output, target, reduction='mean'):
+
+def mse_loss(output, target, reduction="mean"):
     """
     Compute the squared difference between an output and a target value
 
@@ -30,16 +32,17 @@ def mse_loss(output, target, reduction='mean'):
     """
     diff = output - target
     err = diff * diff
-    if reduction == 'none':
+    if reduction == "none":
         return err
-    elif reduction == 'mean':
+    elif reduction == "mean":
         return reduce_mean(err)
-    elif reduction == 'sum':
+    elif reduction == "sum":
         return reduce_sum(err)
     else:
-        raise ValueError(f'Unsupported reduction type: {reduction}')
+        raise ValueError(f"Unsupported reduction type: {reduction}")
 
-def l1_loss(output, target, reduction='mean'):
+
+def l1_loss(output, target, reduction="mean"):
     """
     Compute the absolute difference between an output and a target value
 
@@ -59,16 +62,17 @@ def l1_loss(output, target, reduction='mean'):
     PyTorch equivalent: torch.nn.functional.l1_loss
     """
     err = abs(output - target)
-    if reduction == 'none':
+    if reduction == "none":
         return err
-    elif reduction == 'mean':
+    elif reduction == "mean":
         return reduce_mean(err)
-    elif reduction == 'sum':
+    elif reduction == "sum":
         return reduce_sum(err)
     else:
-        raise ValueError(f'Unsupported reduction type: {reduction}')
+        raise ValueError(f"Unsupported reduction type: {reduction}")
 
-def bce_loss(output, target, reduction='mean'):
+
+def bce_loss(output, target, reduction="mean"):
     """
     Compute the binary cross entropy between an output and a target value
 
@@ -88,16 +92,17 @@ def bce_loss(output, target, reduction='mean'):
     PyTorch equivalent: torch.nn.functional.binary_cross_entropy
     """
     err = -(target * math.log(output) + (1.0 - target) * math.log(1.0 - output))
-    if reduction == 'none':
+    if reduction == "none":
         return err
-    elif reduction == 'mean':
+    elif reduction == "mean":
         return reduce_mean(err)
-    elif reduction == 'sum':
+    elif reduction == "sum":
         return reduce_sum(err)
     else:
-        raise ValueError(f'Unsupported reduction type: {reduction}')
+        raise ValueError(f"Unsupported reduction type: {reduction}")
 
-def nll_loss(output, target, reduction='mean'):
+
+def nll_loss(output, target, reduction="mean"):
     """
     Compute the negative log likelihood of a target class under an output log probability
         distribution.
@@ -122,16 +127,17 @@ def nll_loss(output, target, reduction='mean'):
     output = reshape(output, [-1, output.shape[-1]])
     target = np.reshape(target, [-1])
     err = -output[np.arange(target.size), target]
-    if reduction == 'none':
+    if reduction == "none":
         return reshape(err, shape)
-    elif reduction == 'mean':
+    elif reduction == "mean":
         return reduce_mean(err)
-    elif reduction == 'sum':
+    elif reduction == "sum":
         return reduce_sum(err)
     else:
-        raise ValueError(f'Unsupported reduction type: {reduction}')
+        raise ValueError(f"Unsupported reduction type: {reduction}")
 
-def cross_entropy_loss(output, target, reduction='mean'):
+
+def cross_entropy_loss(output, target, reduction="mean"):
     """
     Compute the cross entropy of logits w.r.t. a target class.
     This is just log softmax followed by the NLL loss.
@@ -153,3 +159,61 @@ def cross_entropy_loss(output, target, reduction='mean'):
     """
     return nll_loss(log_softmax(output, -1), target, reduction)
 
+
+def _cross_entropy_loss(output, target, reduction="mean"):
+    """
+    Compute the cross entropy of logits w.r.t. a target class.
+    This is just log softmax followed by the NLL loss.
+
+    Args:
+        output: a tensor (Node or numpy.ndarray) containing logits
+        target: a numpy.ndarray with dtype=int containing class labels
+        reduction: how the computed error should be reduced (see below)
+
+    Returns:
+        reduce(nll_loss(log_softmax(output), target)), where reduce is specified by the 'reduction' arg:
+            * reduction='mean' -> reduce(x) = mean(x)
+            * reduction='sum'  -> reduce(x) = sum(x)
+            * reduction='none' -> reduce(x) = x
+
+    Tensorflow equivalent: tf.keras.losses.categorical_crossentropy(tf.one_hot(target), output, from_logits=True)
+
+    PyTorch equivalent: torch.nn.functional.cross_entropy
+    """
+
+    def nll_loss(output, target, reduction):
+        target = ad.value(target)
+        shape = target.shape
+        output = np.reshape(output, [-1, output.shape[-1]])
+        target = np.reshape(target, [-1])
+        err = -output[np.arange(target.size), target]
+        if reduction == "none":
+            return np.reshape(err, shape)
+        elif reduction == "mean":
+            return np.mean(err)
+        elif reduction == "sum":
+            return np.sum(err)
+        else:
+            raise ValueError(f"Unsupported reduction type: {reduction}")
+
+    return nll_loss(ssp.log_softmax(output, -1), target, reduction)
+
+
+def _cross_entropy_loss_backward(out, logits, target, reduction="mean"):
+    """
+    out - the output of the forward pass
+    logits - the logit input value to the forward pass
+    target - the target input value to the forward pass
+    """
+    m = target.shape[0]
+    probs = ssp.softmax(ad.value(logits), axis=-1)
+    err = probs
+    err[range(m), target] -= 1
+    return err, None, None
+
+
+cross_entropy_loss_raw = make_function(
+    forward=_cross_entropy_loss,
+    backward=pointwise_backward(_cross_entropy_loss_backward),
+    name_fct=lambda a, b: f"(cross_entropy_loss {ad.name(a)})",
+)
