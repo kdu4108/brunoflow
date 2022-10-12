@@ -201,10 +201,6 @@ class Node:
                             print(
                                 f"replacing max_neg_grad of node {self.inputs[i].name} from {(prev_vals, prev_parents)} to {self.inputs[i].max_neg_grad_of_output_wrt_node}"
                             )
-                        # if adj_max_neg_grad < self.inputs[i].max_neg_grad_of_output_wrt_node[0]:
-                        #     if verbose:
-                        #         print(f"replacing max_neg_grad of node {self.inputs[i].name} from {self.inputs[i].max_neg_grad_of_output_wrt_node} to {(adj_max_neg_grad, self.name)}")
-                        #     self.inputs[i].max_neg_grad_of_output_wrt_node = (adj_max_neg_grad, self)
 
             # Continue recursively backpropagating
             for inp in self.inputs:
