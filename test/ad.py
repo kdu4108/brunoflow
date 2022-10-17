@@ -296,3 +296,23 @@ class AutodiffEntropyTestCase(ut.TestCase):
         output.backprop(verbose=True)
 
         self.assertTrue(x_bf.compute_entropy() == np.log(2))
+
+    def test_entropy_of_single_variable_in_two_paths_with_opposite_gradients(self):
+        x_bf = bf.Parameter(3, name="x")
+        output = x_bf * 4 + x_bf * -2
+        output.backprop(verbose=True)
+
+        print("x_bf.compute_entropy():", x_bf.compute_entropy())
+        print("x_bf grad:", x_bf.grad)
+
+        self.assertTrue(x_bf.compute_entropy() == ((-4 * np.log(4) - 2 * np.log(2)) / 6 + np.log(6)))
+
+    def test_entropy_of_single_variable_in_two_paths_with_identical_but_opposite_gradients(self):
+        x_bf = bf.Parameter(3, name="x")
+        output = x_bf * 2 + x_bf * -2
+        output.backprop(verbose=True)
+
+        print("x_bf.compute_entropy():", x_bf.compute_entropy())
+        print("x_bf grad:", x_bf.grad)
+
+        self.assertTrue(x_bf.compute_entropy() == np.log(2))
