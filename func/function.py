@@ -3,8 +3,10 @@ This module contains the code for defining new autodiff functions.
 """
 
 from collections.abc import Iterable
+import inspect
 import numpy as np
 from .. import ad
+from operator import __mul__
 
 
 def make_function(forward, backward=None, name_fct=None):
@@ -29,12 +31,19 @@ def make_function(forward, backward=None, name_fct=None):
                 backward = lambda out_val, out_grad, x: out_grad * -cos(x)
     """
 
-    def backward_wrapper(*args):
+    def backward_wrapper(*args, **kwargs):
         """
         Helper function that makes sure that the return value of backward is always a list
         (So we can iterate over the adjoints returned by it)
         """
-        ret = backward(*args)
+        backward_args = inspect.signature(backward).parameters
+        # print("args:", args, "kwargs:", kwargs, "backward fct name:", backward.__name__, "backward args:", backward_args)
+
+        for kwarg in list(kwargs.keys()):
+            if kwarg not in backward_args:
+                # print(f"WARNING: backward function named {backward.__name__} does not have an argument named {kwarg}. Deleting kwarg.")
+                del kwargs[kwarg]
+        ret = backward(*args, **kwargs)
         if not isinstance(ret, Iterable) or isinstance(ret, np.ndarray):
             ret = [ret]
         return ret
@@ -65,14 +74,16 @@ def pointwise_backward(pointwise_back_fn):
         <some function of out_val and x> and taking care of the multiplication by out_grad automatically
     """
 
-    def backward_func(out_val, out_grad, *input_vals):
+    def backward_func(out_val, out_grad, *input_vals, product_fn=__mul__):
         # Invoke the pointwise backward function
         local_adjoints = pointwise_back_fn(out_val, *input_vals)
         # Make sure the returned adjoints are a list we can iterate over
         if not isinstance(local_adjoints, Iterable) or isinstance(local_adjoints, np.ndarray):
             local_adjoints = [local_adjoints]
         # Multiply each returned adjoint by out_grad
-        return [ladj * out_grad if (ladj is not None) else None for i, ladj in enumerate(local_adjoints)]
+        # if product_fn is not __mul__:
+        #     print("backward_func out:", [product_fn(ladj, out_grad) if (ladj is not None) else None for i, ladj in enumerate(local_adjoints)])
+        return [product_fn(ladj, out_grad) if (ladj is not None) else None for i, ladj in enumerate(local_adjoints)]
 
     return backward_func
 

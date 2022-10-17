@@ -3,7 +3,7 @@ import numpy as np
 import unittest as ut
 
 
-class AutodiffTestCase(ut.TestCase):
+class AutodiffMaxGradTestCase(ut.TestCase):
     ###################################
     # MAX GRAD AND MAX NEG GRAD TESTS #
     ###################################
@@ -284,3 +284,15 @@ class AutodiffTestCase(ut.TestCase):
         print("w max grad:", linear_bf.W.max_grad_of_output_wrt_node)
         print("w max neg grad:", linear_bf.W.max_neg_grad_of_output_wrt_node)
         print("w grad:", linear_bf.W.grad)
+
+
+class AutodiffEntropyTestCase(ut.TestCase):
+    #################
+    # ENTROPY TESTS #
+    #################
+    def test_entropy_of_single_variable_in_two_paths_with_identical_gradients(self):
+        x_bf = bf.Parameter(3, name="x")
+        output = x_bf * 2 + x_bf * 2
+        output.backprop(verbose=True)
+
+        self.assertTrue(x_bf.compute_entropy() == np.log(2))

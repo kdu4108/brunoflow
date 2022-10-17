@@ -30,6 +30,9 @@ def reduce_min(x, axis=None):
 
 
 def reduce_min_backward(out_val, out_grad, x, axis=None):
+    if isinstance(out_grad, dict):
+        # value of out_grad is a dict containing keys out_grad and out_entropy
+        out_grad = out_grad["out_grad"]
     grad = np.zeros_like(x)
     if axis is None:
         min_index = np.argmin(x)
@@ -67,6 +70,9 @@ def reduce_max(x, axis=None):
 
 
 def reduce_max_backward(out_val, out_grad, x, axis=None):
+    if isinstance(out_grad, dict):
+        # value of out_grad is a dict containing keys out_grad and out_entropy
+        out_grad = out_grad["out_grad"]
     grad = np.zeros_like(x)
     if axis is None:
         min_index = np.argmax(x)
@@ -104,6 +110,9 @@ def reduce_sum(x, axis=None):
 
 
 def reduce_sum_backward(out_val, out_grad, x, axis=None):
+    if isinstance(out_grad, dict):
+        # value of out_grad is a dict containing keys out_grad and out_entropy
+        out_grad = out_grad["out_grad"]
     if axis is None:
         return np.full(x.shape, out_grad), None
     else:

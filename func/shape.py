@@ -4,11 +4,12 @@ This module defines functions that alter the shape of a tensor/tensors without c
 """
 
 import numpy as np
-from collections.abc import Iterable 
+from collections.abc import Iterable
 from .function import make_function
 from ..ad import Node
 
 ##################### RESHAPING #####################
+
 
 def reshape(x, newshape):
     """
@@ -26,10 +27,16 @@ def reshape(x, newshape):
     PyTorch equivalent: torch.reshape
     """
     return __reshape(x, newshape)
+
+
 __reshape = make_function(
     np.reshape,
-    lambda out_val, out_grad, x, newshape: ( np.reshape(out_grad, x.shape), None )
+    lambda out_val, out_grad, x, newshape: (
+        np.reshape(out_grad if not isinstance(out_grad, dict) else out_grad["out_grad"], x.shape),
+        None,
+    ),  # if out_grad is a dict, then it contains the out_grad and out_entropy keys. Here, we only want out_grad
 )
+
 
 def squeeze(x, axis=None):
     """
@@ -47,10 +54,16 @@ def squeeze(x, axis=None):
     PyTorch equivalent: torch.squeeze
     """
     return _squeeze(x, axis)
+
+
 _squeeze = make_function(
     np.squeeze,
-    lambda out_val, out_grad, x, axis: ( np.reshape(out_grad, x.shape), None ) 
+    lambda out_val, out_grad, x, axis: (
+        np.reshape(out_grad if not isinstance(out_grad, dict) else out_grad["out_grad"], x.shape),
+        None,
+    ),
 )
+
 
 def expand_dims(x, axis):
     """
@@ -68,12 +81,18 @@ def expand_dims(x, axis):
     PyTorch equivalent: torch.unsqueeze
     """
     return __expand_dims(x, axis)
+
+
 __expand_dims = make_function(
     np.expand_dims,
-    lambda out_val, out_grad, x, axis: ( np.reshape(out_grad, x.shape), None ) 
+    lambda out_val, out_grad, x, axis: (
+        np.reshape(out_grad if not isinstance(out_grad, dict) else out_grad["out_grad"], x.shape),
+        None,
+    ),
 )
 
 ##################### COMBINING #####################
+
 
 def concat(xs, axis=0):
     """
@@ -92,20 +111,26 @@ def concat(xs, axis=0):
     PyTorch equivalent: torch.cat
     """
     return __concat(axis, *xs)
+
+
 def concat_backward(out_val, out_grad, axis, *xs):
+    if isinstance(out_grad, dict):
+        # value of out_grad is a dict containing keys out_grad and out_entropy
+        out_grad = out_grad["out_grad"]
     ret_grads = [None]  # no adjoint for the 'axis' argument
     start_idx = 0
     for x in xs:
-        slices = tuple(slice(start_idx, start_idx+dim) if i == axis else slice(0, dim) for i,dim in enumerate(x.shape))
+        slices = tuple(
+            slice(start_idx, start_idx + dim) if i == axis else slice(0, dim) for i, dim in enumerate(x.shape)
+        )
         grad = out_grad[slices]
         ret_grads.append(grad)
         start_idx += x.shape[axis]
     return ret_grads
-        
-__concat = make_function(
-    lambda axis, *xs: np.concatenate(xs, axis),
-    concat_backward
-)
+
+
+__concat = make_function(lambda axis, *xs: np.concatenate(xs, axis), concat_backward)
+
 
 def repeat(x, n, axis):
     """
@@ -125,7 +150,8 @@ def repeat(x, n, axis):
     """
     xs = [x for i in range(0, n)]
     return concat(xs, axis)
-    
+
+
 def stack(xs, axis):
     """
     Stack multiple tensors into a single tensor along a new axis
@@ -143,7 +169,9 @@ def stack(xs, axis):
     """
     return concat([expand_dims(x, axis) for x in xs], axis)
 
+
 ##################### UN-COMBINING #####################
+
 
 def get_item(x, arg):
     """
@@ -168,14 +196,19 @@ def get_item(x, arg):
     PyTorch equivalent: x[arg]
     """
     return Node.__getitem__(x, arg)
+
+
 def getitem_backward(out_val, out_grad, x, arg):
+    if isinstance(out_grad, dict):
+        # value of out_grad is a dict containing keys out_grad and out_entropy
+        out_grad = out_grad["out_grad"]
     grad = np.zeros_like(x)
     grad[arg] = out_grad
     return grad, None
-Node.__getitem__ = make_function(
-    lambda x, arg: x[arg],
-    getitem_backward
-)
+
+
+Node.__getitem__ = make_function(lambda x, arg: x[arg], getitem_backward)
+
 
 def split(x, indices_or_sections, axis):
     """
@@ -201,27 +234,30 @@ def split(x, indices_or_sections, axis):
         N = indices_or_sections
         size = x.shape[axis]
         if size % N != 0:
-            raise ValueError(f'Size of array along axis must be divisible by number of splits; {size} is not divisible by {N}')
+            raise ValueError(
+                f"Size of array along axis must be divisible by number of splits; {size} is not divisible by {N}"
+            )
         increment = size // N
-        indices_or_sections = [i*increment for i in range(1, N)]
+        indices_or_sections = [i * increment for i in range(1, N)]
     if isinstance(indices_or_sections, Iterable):
         indices = indices_or_sections
         indices.sort()
         if not all([isinstance(i, int) for i in indices]):
-            raise TypeError('indices argument to split must contain only ints')
+            raise TypeError("indices argument to split must contain only ints")
         indices.insert(0, 0)
         indices.append(x.shape[axis])
         splits = []
-        for i in range(0, len(indices)-1):
+        for i in range(0, len(indices) - 1):
             slices = []
             for j in range(x.ndim):
                 start = indices[i] if j == axis else 0
-                stop = indices[i+1] if j == axis else x.shape[j]
+                stop = indices[i + 1] if j == axis else x.shape[j]
                 slices.append(slice(start, stop))
             splits.append(x[tuple(slices)])
         return splits
     else:
-        raise TypeError(f'Argument to split must be either int or Iterable; got {type(indices_or_sections)} instead')
+        raise TypeError(f"Argument to split must be either int or Iterable; got {type(indices_or_sections)} instead")
+
 
 def unstack(x, axis):
     """
@@ -242,4 +278,3 @@ def unstack(x, axis):
     N = x.shape[axis]
     splits = split(x, N, axis)
     return [squeeze(y) for y in splits]
-

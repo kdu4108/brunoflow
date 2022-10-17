@@ -21,6 +21,9 @@ def transpose(x, axes):
 
 
 def transpose_backward(out_val, out_grad, x, axes):
+    if isinstance(out_grad, dict):
+        # value of out_grad is a dict containing keys out_grad and out_entropy
+        out_grad = out_grad["out_grad"]
     inverse_perm = np.arange(len(axes))[np.argsort(axes)]
     return np.transpose(out_grad, inverse_perm), None
 
@@ -66,6 +69,9 @@ def diag(x, k=0):
 
 
 def diag_backward(out_val, out_grad, x, k):
+    if isinstance(out_grad, dict):
+        # value of out_grad is a dict containing keys out_grad and out_entropy
+        out_grad = out_grad["out_grad"]
     if x.ndim == 2:
         return diagflat_nonsquare(out_grad, k, x.shape)
     else:
@@ -117,7 +123,9 @@ def det(x):
 
 __det = make_function(
     lambda x: np.linalg.det(x),
-    lambda out_val, out_grad, x: np.expand_dims(np.expand_dims(out_val * out_grad, -1), -1)
+    lambda out_val, out_grad, x: np.expand_dims(
+        np.expand_dims(out_val * (out_grad if not isinstance(out_grad, dict) else out_grad["out_grad"]), -1), -1
+    )
     * __np_matrix_transpose(np.linalg.inv(x)),
 )
 
@@ -135,7 +143,9 @@ def inv(x):
 
 def inv_backward(out_val, out_grad, x):
     out_val_T = __np_matrix_transpose(out_val)
-    return -np.matmul(out_val_T, np.matmul(out_grad, out_val_T))
+    return -np.matmul(
+        out_val_T, np.matmul(out_grad if not isinstance(out_grad, dict) else out_grad["out_grad"], out_val_T)
+    )
 
 
 __inv = make_function(lambda x: np.linalg.inv(x), inv_backward)
@@ -182,8 +192,8 @@ def norm(x, axis=None):
 matmul = make_function(
     lambda A, B: np.matmul(A, B),
     lambda out_val, out_grad, A, B: (
-        np.matmul(out_grad, __np_matrix_transpose(B)),
-        np.matmul(__np_matrix_transpose(A), out_grad),
+        np.matmul(out_grad if not isinstance(out_grad, dict) else out_grad["out_grad"], __np_matrix_transpose(B)),
+        np.matmul(__np_matrix_transpose(A), out_grad if not isinstance(out_grad, dict) else out_grad["out_grad"]),
     ),
     lambda A, B: f"(matmul {name(A)} {name(B)})",
 )
