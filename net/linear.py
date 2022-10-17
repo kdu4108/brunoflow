@@ -24,11 +24,11 @@ class Linear(Network):
 
     def set_weights(self, W: np.ndarray):
         assert W.shape == self.W.val.shape
-        self.W = Parameter(W)
+        self.W.val = W
 
     def set_bias(self, b: np.ndarray):
         assert b.shape == self.b.val.shape
-        self.b = Parameter(b)
+        self.b.val = b
 
 
 class LinearInitToOne(Linear):
