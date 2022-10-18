@@ -161,7 +161,11 @@ class Node:
                 adjoints_max_neg_grad = backward_func(self.val, self.max_neg_grad_of_output_wrt_node[0], *input_vals)
 
                 # Required for running the entropy semiring properly, compute the abs value of the gradient
-                adjoints_abs_val_grad = np.abs(adjoints)
+                adjoints_abs_val_grad = (
+                    np.abs(adjoints)
+                    if isinstance(adjoints, (np.ndarray, np.floating, float))
+                    else tuple(np.abs(adjoint) if adjoint is not None else None for adjoint in adjoints)
+                )
 
                 # Semi-ring product (out_grad, -out_entropy) and (adj_grad, - adj_grad * log(adj_grad)) to get adjoint entropy (where adj_grad is the local derivative of self wrt each adjoint input)
                 # print("backward_func:", backward_func.__name__)
