@@ -41,16 +41,16 @@ class Node:
     ):
         self.val = val
         self.grad: Union[np.ndarray, np.float64] = np.zeros_like(val, dtype=np.float64)
-        # self.max_grad_of_output_wrt_node: Tuple[Union[np.ndarray, np.float64], Union[npt.NDArray[Node], Node]] = (
-        #     np.full_like(val, fill_value=-np.inf, dtype=np.float64),
-        #     np.empty_like(val, dtype=type(None)),
-        # )
-        # self.max_neg_grad_of_output_wrt_node: Tuple[Union[np.ndarray, np.float64], Union[npt.NDArray[Node], Node]] = (
-        #     np.full_like(val, fill_value=np.inf, dtype=np.float64),
-        #     np.empty_like(val, dtype=type(None)),
-        # )
-        # self.entropy_wrt_output: Union[np.ndarray, np.float64] = np.zeros_like(val, dtype=np.float64)
-        # self.abs_val_grad: Union[np.ndarray, np.float64] = np.zeros_like(val, dtype=np.float64)
+        self.max_grad_of_output_wrt_node: Tuple[Union[np.ndarray, np.float64], Union[npt.NDArray[Node], Node]] = (
+            np.full_like(val, fill_value=-np.inf, dtype=np.float64),
+            np.empty_like(val, dtype=type(None)),
+        )
+        self.max_neg_grad_of_output_wrt_node: Tuple[Union[np.ndarray, np.float64], Union[npt.NDArray[Node], Node]] = (
+            np.full_like(val, fill_value=np.inf, dtype=np.float64),
+            np.empty_like(val, dtype=type(None)),
+        )
+        self.entropy_wrt_output: Union[np.ndarray, np.float64] = np.zeros_like(val, dtype=np.float64)
+        self.abs_val_grad: Union[np.ndarray, np.float64] = np.zeros_like(val, dtype=np.float64)
         self.backward_func = backward_func
         self.inputs = inputs
         self.name = name
@@ -98,14 +98,14 @@ class Node:
             # self.max_grad_of_output_wrt_node[0].fill(1.0)
             # self.max_neg_grad_of_output_wrt_node[0].fill(1.0)
             # self.entropy_wrt_output.fill(0.0)
-            # self.abs_val_grad.fill(1.0)
+            self.abs_val_grad.fill(1.0)
         else:
             # If the grad is a float rather than an np.ndarray
             self.grad = 1.0
             # self.max_grad_of_output_wrt_node = (1.0, None)
             # self.max_neg_grad_of_output_wrt_node = (1.0, None)
             # self.entropy_wrt_output = 0.0
-            # self.abs_val_grad = 1.0
+            self.abs_val_grad = 1.0
         if verbose:
             print(
                 "Starting backprop:",
@@ -154,27 +154,30 @@ class Node:
                 #   (typically the loss) w.r.t. the value at this Node.
                 adjoints = backward_func(self.val, self.grad, *input_vals)
 
-                # # Multiply the max pos grad of self w.r.t. output by the local derivative for each input val
-                # adjoints_max_grad = backward_func(self.val, self.max_grad_of_output_wrt_node[0], *input_vals)
+                # Multiply the max pos grad of self w.r.t. output by the local derivative for each input val
+                adjoints_max_grad = backward_func(self.val, self.max_grad_of_output_wrt_node[0], *input_vals)
 
-                # # Multiply the max neg grad of self w.r.t. output by the local derivative for each input val
-                # adjoints_max_neg_grad = backward_func(self.val, self.max_neg_grad_of_output_wrt_node[0], *input_vals)
+                # Multiply the max neg grad of self w.r.t. output by the local derivative for each input val
+                adjoints_max_neg_grad = backward_func(self.val, self.max_neg_grad_of_output_wrt_node[0], *input_vals)
 
                 # # Required for running the entropy semiring properly, compute the abs value of the gradient
-                # adjoints_abs_val_grad = np.abs(adjoints)
-
+                adjoints_abs_val_grad = (
+                    np.abs(adjoints)
+                    if isinstance(adjoints, (np.ndarray, np.floating, float))
+                    else tuple(np.abs(adjoint) if adjoint is not None else None for adjoint in adjoints)
+                )
                 # # Semi-ring product (out_grad, -out_entropy) and (adj_grad, - adj_grad * log(adj_grad)) to get adjoint entropy (where adj_grad is the local derivative of self wrt each adjoint input)
                 # # print("backward_func:", backward_func.__name__)
-                # adjoints_entropy = backward_func(
-                #     self.val,
-                #     dict(out_grad=self.grad, out_abs_val_grad=self.abs_val_grad, out_entropy=self.entropy_wrt_output),
-                #     *input_vals,
-                #     product_fn=(
-                #         lambda l_adj, out_grad_and_entropy_dict: np.abs(l_adj)
-                #         * out_grad_and_entropy_dict["out_entropy"]
-                #         + (-np.abs(l_adj) * np.log(np.abs(l_adj)) * out_grad_and_entropy_dict["out_abs_val_grad"])
-                #     ),
-                # )
+                adjoints_entropy = backward_func(
+                    self.val,
+                    dict(out_grad=self.grad, out_abs_val_grad=self.abs_val_grad, out_entropy=self.entropy_wrt_output),
+                    *input_vals,
+                    product_fn=(
+                        lambda l_adj, out_grad_and_entropy_dict: np.abs(l_adj)
+                        * out_grad_and_entropy_dict["out_entropy"]
+                        + (-np.abs(l_adj) * np.log(np.abs(l_adj)) * out_grad_and_entropy_dict["out_abs_val_grad"])
+                    ),
+                )
 
                 # print(self.max_grad_of_output_wrt_node[0])
                 assert (
@@ -187,25 +190,25 @@ class Node:
                 # Accumulate these adjoints into the gradients for this Node's inputs
                 for i in range(len(adjoints)):
                     adj = adjoints[i]
-                    # adj_max_grad = adjoints_max_grad[i]
-                    # adj_max_neg_grad = adjoints_max_neg_grad[i]
-                    # adj_entropy = adjoints_entropy[i]
-                    # adj_abs_val_grad = adjoints_abs_val_grad[i]
+                    adj_max_grad = adjoints_max_grad[i]
+                    adj_max_neg_grad = adjoints_max_neg_grad[i]
+                    adj_entropy = adjoints_entropy[i]
+                    adj_abs_val_grad = adjoints_abs_val_grad[i]
                     if isinstance(self.inputs[i], Node):
                         # An adjoint may need to be 'reshaped' before it can be accumulated if the forward operation used broadcasting.
                         adjoint_gradient = reshape_adjoint(adj, self.inputs[i].grad.shape)
-                        # adj_max_grad = reshape_adjoint(adj_max_grad, self.inputs[i].grad.shape)
-                        # adj_max_neg_grad = reshape_adjoint(adj_max_neg_grad, self.inputs[i].grad.shape)
-                        # adj_entropy = reshape_adjoint(adj_entropy, self.inputs[i].grad.shape)
-                        # adj_abs_val_grad = reshape_adjoint(adj_abs_val_grad, self.inputs[i].grad.shape)
+                        adj_max_grad = reshape_adjoint(adj_max_grad, self.inputs[i].grad.shape)
+                        adj_max_neg_grad = reshape_adjoint(adj_max_neg_grad, self.inputs[i].grad.shape)
+                        adj_entropy = reshape_adjoint(adj_entropy, self.inputs[i].grad.shape)
+                        adj_abs_val_grad = reshape_adjoint(adj_abs_val_grad, self.inputs[i].grad.shape)
 
                         # ACCUMULATE GRADIENT BY SUMMING
                         self.inputs[i].grad += adjoint_gradient
 
-                        # # If the max pos grad is less than the max neg grad, that means there was some sign flipping, and we should reverse which is most positive and most negative. Use np.maximum and np.minimum to do this element-wise.
-                        # adj_max_grad, adj_max_neg_grad = np.maximum(adj_max_grad, adj_max_neg_grad), np.minimum(
-                        #     adj_max_grad, adj_max_neg_grad
-                        # )
+                        # If the max pos grad is less than the max neg grad, that means there was some sign flipping, and we should reverse which is most positive and most negative. Use np.maximum and np.minimum to do this element-wise.
+                        adj_max_grad, adj_max_neg_grad = np.maximum(adj_max_grad, adj_max_neg_grad), np.minimum(
+                            adj_max_grad, adj_max_neg_grad
+                        )
 
                         # # ACCUMULATE MAX POS GRAD BY USING THE MAX OPERATOR
                         # # Replace the current (max grad value, parent) of the ith input node with (max grad value of self, self) for all elements in the ith input node that have higher max grad values in self.
@@ -224,18 +227,31 @@ class Node:
                         #         f"    Replacing max_grad of node {self.inputs[i].name}:\n     from {(prev_vals, prev_parents)} \n       to {self.inputs[i].max_grad_of_output_wrt_node}."
                         #     )
 
-                        # # ACCUMULATE MAX NEG GRAD BY USING THE MIN OPERATOR
-                        # # Replace the current (max neg grad value, parent) of the ith input node with (max neg grad value of self, self) for all elements in the ith input node that have more negative max neg grad values in self.
-                        # inds_to_replace_max_neg_grad = (
-                        #     adj_max_neg_grad < self.inputs[i].max_neg_grad_of_output_wrt_node[0]
-                        # )
+                        # ACCUMULATE MAX NEG GRAD BY USING THE MIN OPERATOR
+                        # Replace the current (max neg grad value, parent) of the ith input node with (max neg grad value of self, self) for all elements in the ith input node that have more negative max neg grad values in self.
+                        inds_to_replace_max_neg_grad = (
+                            adj_max_neg_grad < self.inputs[i].max_neg_grad_of_output_wrt_node[0]
+                        )
                         # prev_vals, prev_parents = np.copy(self.inputs[i].max_neg_grad_of_output_wrt_node[0]), np.copy(
                         #     self.inputs[i].max_neg_grad_of_output_wrt_node[1]
                         # )
-                        # self.inputs[i].max_neg_grad_of_output_wrt_node[0][
-                        #     inds_to_replace_max_neg_grad
-                        # ] = adj_max_neg_grad[inds_to_replace_max_neg_grad]
-                        # self.inputs[i].max_neg_grad_of_output_wrt_node[1][inds_to_replace_max_neg_grad] = self
+                        self.inputs[i].max_neg_grad_of_output_wrt_node[0][
+                            inds_to_replace_max_neg_grad
+                        ] = adj_max_neg_grad[inds_to_replace_max_neg_grad]
+                        import sys
+
+                        if not np.array_equal(
+                            self.inputs[i].max_neg_grad_of_output_wrt_node[1],
+                            np.empty_like(self.inputs[i].max_neg_grad_of_output_wrt_node[1], dtype=type(None)),
+                        ):
+                            print("replacing an already non-None thing")
+                        # print("before:", sys.getsizeof(self.inputs[i].max_neg_grad_of_output_wrt_node[1][inds_to_replace_max_neg_grad]), self.inputs[i].max_neg_grad_of_output_wrt_node[1].shape, np.array_equal(self.inputs[i].max_neg_grad_of_output_wrt_node[1], np.empty_like(self.inputs[i].max_neg_grad_of_output_wrt_node[1], dtype=type(None))))
+                        self.inputs[i].max_neg_grad_of_output_wrt_node[1][
+                            inds_to_replace_max_neg_grad
+                        ] = self  # THIS IS THE LINE THAT STEADILY INCREASES THE MEMORY
+                        # print("self:", sys.getsizeof(self))
+                        # print("after:", sys.getsizeof(self.inputs[i].max_neg_grad_of_output_wrt_node[1][inds_to_replace_max_neg_grad]), self.inputs[i].max_neg_grad_of_output_wrt_node[1].shape)
+
                         # if verbose and not np.array_equal(
                         #     (prev_vals, prev_parents), self.inputs[i].max_neg_grad_of_output_wrt_node
                         # ):
@@ -243,21 +259,21 @@ class Node:
                         #         f"    Replacing max_neg_grad of node {self.inputs[i].name}:\n     from {(prev_vals, prev_parents)} \n       to {self.inputs[i].max_neg_grad_of_output_wrt_node}."
                         #     )
 
-                        # # ACCUMULATE ENTROPY BY USING THE SUM OPERATOR
-                        # prev_entropy = self.inputs[i].entropy_wrt_output
-                        # # print("adj_entropy:", adj_entropy)
-                        # self.inputs[i].entropy_wrt_output += adj_entropy
-                        # if verbose:
-                        #     print(
-                        #         f"    Updating entropy of node {self.inputs[i].name}:\n     from {prev_entropy} \n       to {self.inputs[i].entropy_wrt_output}."
-                        #     )
+                        # ACCUMULATE ENTROPY BY USING THE SUM OPERATOR
+                        prev_entropy = np.copy(self.inputs[i].entropy_wrt_output)
+                        # print("adj_entropy:", adj_entropy)
+                        self.inputs[i].entropy_wrt_output += adj_entropy
+                        if verbose:
+                            print(
+                                f"    Updating entropy of node {self.inputs[i].name}:\n     from {prev_entropy} \n       to {self.inputs[i].entropy_wrt_output}."
+                            )
 
-                        # prev_abs_val_grad = self.inputs[i].abs_val_grad
-                        # self.inputs[i].abs_val_grad += adj_abs_val_grad
-                        # if verbose:
-                        #     print(
-                        #         f"    Updating abs_val_grad of node {self.inputs[i].name}:\n     from {prev_abs_val_grad} \n       to {self.inputs[i].abs_val_grad}."
-                        #     )
+                        prev_abs_val_grad = np.copy(self.inputs[i].abs_val_grad)
+                        self.inputs[i].abs_val_grad += adj_abs_val_grad
+                        if verbose:
+                            print(
+                                f"    Updating abs_val_grad of node {self.inputs[i].name}:\n     from {prev_abs_val_grad} \n       to {self.inputs[i].abs_val_grad}."
+                            )
 
             # Continue recursively backpropagating
             for inp in self.inputs:
