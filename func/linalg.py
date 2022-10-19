@@ -28,7 +28,9 @@ def transpose_backward(out_val, out_grad, x, axes):
     return np.transpose(out_grad, inverse_perm), None
 
 
-__transpose = make_function(lambda x, axes: np.transpose(x, axes), transpose_backward)
+__transpose = make_function(
+    lambda x, axes: np.transpose(x, axes), transpose_backward, lambda x, axes: f"(transpose {name(x)} axes={axes})"
+)
 
 
 def matrix_transpose(x):
@@ -96,7 +98,11 @@ def diagflat_nonsquare(diag_vec, k, out_shape):
     return diag_mat
 
 
-_diag = make_function(lambda x, k: np.diagonal(x, offset=k, axis1=-2, axis2=-1), diag_backward)
+_diag = make_function(
+    lambda x, k: np.diagonal(x, offset=k, axis1=-2, axis2=-1),
+    diag_backward,
+    lambda x, k: f"(diag {name(x)} offset={name(k)})",
+)
 
 
 def trace(x):
@@ -127,6 +133,7 @@ __det = make_function(
         np.expand_dims(out_val * (out_grad if not isinstance(out_grad, dict) else out_grad["out_grad"]), -1), -1
     )
     * __np_matrix_transpose(np.linalg.inv(x)),
+    lambda x: f"(det {name(x)})",
 )
 
 
@@ -148,7 +155,11 @@ def inv_backward(out_val, out_grad, x):
     )
 
 
-__inv = make_function(lambda x: np.linalg.inv(x), inv_backward)
+__inv = make_function(
+    lambda x: np.linalg.inv(x),
+    inv_backward,
+    lambda x: f"(inv {name(x)})",
+)
 
 
 def norm(x, axis=None):

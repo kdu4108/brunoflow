@@ -46,7 +46,11 @@ def reduce_min_backward(out_val, out_grad, x, axis=None):
     return grad, None
 
 
-_reduce_min = make_function(lambda x, axis: x.min(axis=axis), reduce_min_backward)
+_reduce_min = make_function(
+    lambda x, axis: x.min(axis=axis),
+    reduce_min_backward,
+    lambda x, axis: f"(min {name(x)} axis={axis})",
+)
 
 
 def reduce_max(x, axis=None):
@@ -86,7 +90,11 @@ def reduce_max_backward(out_val, out_grad, x, axis=None):
     return grad, None
 
 
-_reduce_max = make_function(lambda x, axis: x.max(axis=axis), reduce_max_backward)
+_reduce_max = make_function(
+    lambda x, axis: x.max(axis=axis),
+    reduce_max_backward,
+    lambda x, axis: f"(max {name(x)} axis={axis})",
+)
 
 
 def reduce_sum(x, axis=None):

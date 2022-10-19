@@ -6,7 +6,7 @@ This module defines functions that alter the shape of a tensor/tensors without c
 import numpy as np
 from collections.abc import Iterable
 from .function import make_function
-from ..ad import Node
+from ..ad import Node, name
 
 ##################### RESHAPING #####################
 
@@ -35,6 +35,7 @@ __reshape = make_function(
         np.reshape(out_grad if not isinstance(out_grad, dict) else out_grad["out_grad"], x.shape),
         None,
     ),  # if out_grad is a dict, then it contains the out_grad and out_entropy keys. Here, we only want out_grad
+    lambda x, newshape: f"(reshape {name(x)} shape={newshape})",
 )
 
 
@@ -62,6 +63,7 @@ _squeeze = make_function(
         np.reshape(out_grad if not isinstance(out_grad, dict) else out_grad["out_grad"], x.shape),
         None,
     ),
+    lambda x, axis: f"(squeeze {name(x)} axis={axis})",
 )
 
 
@@ -89,6 +91,7 @@ __expand_dims = make_function(
         np.reshape(out_grad if not isinstance(out_grad, dict) else out_grad["out_grad"], x.shape),
         None,
     ),
+    lambda x, axis: f"(expand_dims {name(x)} axis={axis})",
 )
 
 ##################### COMBINING #####################
@@ -129,7 +132,11 @@ def concat_backward(out_val, out_grad, axis, *xs):
     return ret_grads
 
 
-__concat = make_function(lambda axis, *xs: np.concatenate(xs, axis), concat_backward)
+__concat = make_function(
+    lambda axis, *xs: np.concatenate(xs, axis),
+    concat_backward,
+    lambda axis, *xs: f"(concat {tuple(name(x) for x in xs)} axis={axis})",
+)
 
 
 def repeat(x, n, axis):
@@ -207,7 +214,9 @@ def getitem_backward(out_val, out_grad, x, arg):
     return grad, None
 
 
-Node.__getitem__ = make_function(lambda x, arg: x[arg], getitem_backward)
+Node.__getitem__ = make_function(
+    lambda x, arg: x[arg], getitem_backward, lambda x, arg: f"(getitem {name(x)} arg={arg})"
+)
 
 
 def split(x, indices_or_sections, axis):

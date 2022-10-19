@@ -16,6 +16,8 @@ from .function import make_function, pointwise_backward
 from . import math
 from .reductions import reduce_logsumexp
 from .shape import expand_dims
+from ..ad import name
+
 
 def sigmoid(x):
     """
@@ -32,10 +34,14 @@ def sigmoid(x):
     PyTorch equivalent: torch.nn.functional.sigmoid
     """
     return __sigmoid(x)
+
+
 __sigmoid = make_function(
     lambda x: 1 / (1 + np.exp(-x)),
-    pointwise_backward(lambda out, x: out * (1 - out))
+    pointwise_backward(lambda out, x: out * (1 - out)),
+    lambda x: f"(sigmoid {name(x)})",
 )
+
 
 def softplus(x):
     """
@@ -52,10 +58,14 @@ def softplus(x):
     PyTorch equivalent: torch.nn.functional.softplus
     """
     return __softplus(x)
+
+
 __softplus = make_function(
     lambda x: np.log(1 + np.exp(x)),
-    pointwise_backward(lambda out, x: np.exp(x) / ( 1 + np.exp(x)))
+    pointwise_backward(lambda out, x: np.exp(x) / (1 + np.exp(x))),
+    lambda x: f"(softplus {name(x)})",
 )
+
 
 def relu(x):
     """
@@ -73,6 +83,7 @@ def relu(x):
     """
     return math.maximum(x, 0)
 
+
 def leakyrelu(x, neg_slope=0.01):
     """
     The Leaky ReLU activation function: max(x, 0) + neg_slope*min(x, 0)
@@ -87,7 +98,8 @@ def leakyrelu(x, neg_slope=0.01):
 
     PyTorch equivalent: torch.nn.functional.leaky_relu
     """
-    return relu(x) + math.minimum(x, 0)*neg_slope
+    return relu(x) + math.minimum(x, 0) * neg_slope
+
 
 def softmax(x, axis):
     """
@@ -108,6 +120,7 @@ def softmax(x, axis):
     """
     return math.exp(log_softmax(x, axis=axis))
 
+
 def log_softmax(x, axis):
     """
     The log softmax function: log(e^x / sum(e^x))
@@ -126,4 +139,3 @@ def log_softmax(x, axis):
     PyTorch equivalent: torch.nn.functional.log_softmax
     """
     return x - expand_dims(reduce_logsumexp(x, axis=axis), axis)
-
