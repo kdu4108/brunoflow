@@ -5,6 +5,7 @@ This module defines functions that alter the shape of a tensor/tensors without c
 
 import numpy as np
 from collections.abc import Iterable
+from brunoflow.func.utils import construct_single_variable_fct_name
 from .function import make_function
 from ..ad import Node, name
 
@@ -35,7 +36,7 @@ __reshape = make_function(
         np.reshape(out_grad if not isinstance(out_grad, dict) else out_grad["out_grad"], x.shape),
         None,
     ),  # if out_grad is a dict, then it contains the out_grad and out_entropy keys. Here, we only want out_grad
-    lambda x, newshape: f"(reshape {name(x)} shape={newshape})",
+    construct_single_variable_fct_name("reshape", additional_arg_names=("shape",)),
 )
 
 
@@ -63,7 +64,7 @@ _squeeze = make_function(
         np.reshape(out_grad if not isinstance(out_grad, dict) else out_grad["out_grad"], x.shape),
         None,
     ),
-    lambda x, axis: f"(squeeze {name(x)} axis={axis})",
+    construct_single_variable_fct_name("squeeze", additional_arg_names=("axis",)),
 )
 
 
@@ -91,7 +92,7 @@ __expand_dims = make_function(
         np.reshape(out_grad if not isinstance(out_grad, dict) else out_grad["out_grad"], x.shape),
         None,
     ),
-    lambda x, axis: f"(expand_dims {name(x)} axis={axis})",
+    construct_single_variable_fct_name("expand_dims", additional_arg_names=("axis",)),
 )
 
 ##################### COMBINING #####################
@@ -215,7 +216,9 @@ def getitem_backward(out_val, out_grad, x, arg):
 
 
 Node.__getitem__ = make_function(
-    lambda x, arg: x[arg], getitem_backward, lambda x, arg: f"(getitem {name(x)} arg={arg})"
+    lambda x, arg: x[arg],
+    getitem_backward,
+    construct_single_variable_fct_name("getitem", additional_arg_names=("arg",)),
 )
 
 

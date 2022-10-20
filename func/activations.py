@@ -17,6 +17,7 @@ from . import math
 from .reductions import reduce_logsumexp
 from .shape import expand_dims
 from ..ad import name
+from brunoflow.func.utils import construct_single_variable_fct_name
 
 
 def sigmoid(x):
@@ -39,7 +40,7 @@ def sigmoid(x):
 __sigmoid = make_function(
     lambda x: 1 / (1 + np.exp(-x)),
     pointwise_backward(lambda out, x: out * (1 - out)),
-    lambda x: f"(sigmoid {name(x)})",
+    construct_single_variable_fct_name("sigmoid"),
 )
 
 
@@ -63,7 +64,7 @@ def softplus(x):
 __softplus = make_function(
     lambda x: np.log(1 + np.exp(x)),
     pointwise_backward(lambda out, x: np.exp(x) / (1 + np.exp(x))),
-    lambda x: f"(softplus {name(x)})",
+    construct_single_variable_fct_name("softplus"),
 )
 
 

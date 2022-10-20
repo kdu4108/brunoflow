@@ -7,6 +7,7 @@ from .function import make_function
 from .reductions import *
 from . import math
 from ..ad import Node
+from brunoflow.func.utils import construct_single_variable_fct_name, construct_double_variable_fct_name
 
 
 def transpose(x, axes):
@@ -29,7 +30,9 @@ def transpose_backward(out_val, out_grad, x, axes):
 
 
 __transpose = make_function(
-    lambda x, axes: np.transpose(x, axes), transpose_backward, lambda x, axes: f"(transpose {name(x)} axes={axes})"
+    lambda x, axes: np.transpose(x, axes),
+    transpose_backward,
+    construct_single_variable_fct_name("transpose", ("axes",)),
 )
 
 
@@ -101,7 +104,7 @@ def diagflat_nonsquare(diag_vec, k, out_shape):
 _diag = make_function(
     lambda x, k: np.diagonal(x, offset=k, axis1=-2, axis2=-1),
     diag_backward,
-    lambda x, k: f"(diag {name(x)} offset={name(k)})",
+    construct_single_variable_fct_name("diag", additional_arg_names=("offset",)),
 )
 
 
@@ -133,7 +136,7 @@ __det = make_function(
         np.expand_dims(out_val * (out_grad if not isinstance(out_grad, dict) else out_grad["out_grad"]), -1), -1
     )
     * __np_matrix_transpose(np.linalg.inv(x)),
-    lambda x: f"(det {name(x)})",
+    construct_single_variable_fct_name("det"),
 )
 
 
@@ -155,11 +158,7 @@ def inv_backward(out_val, out_grad, x):
     )
 
 
-__inv = make_function(
-    lambda x: np.linalg.inv(x),
-    inv_backward,
-    lambda x: f"(inv {name(x)})",
-)
+__inv = make_function(lambda x: np.linalg.inv(x), inv_backward, construct_single_variable_fct_name("inv"))
 
 
 def norm(x, axis=None):
@@ -206,7 +205,7 @@ matmul = make_function(
         np.matmul(out_grad if not isinstance(out_grad, dict) else out_grad["out_grad"], __np_matrix_transpose(B)),
         np.matmul(__np_matrix_transpose(A), out_grad if not isinstance(out_grad, dict) else out_grad["out_grad"]),
     ),
-    lambda A, B: f"(matmul {name(A)} {name(B)})",
+    construct_double_variable_fct_name("matmul"),
 )
 Node.__matmul__ = matmul
 Node.__rmatmul__ = lambda A, B: Node.__mul__(B, A)

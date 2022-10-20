@@ -4,6 +4,7 @@ This module defines functions that perform tensor reductions
 
 import numpy as np
 from brunoflow.ad import name
+from brunoflow.func.utils import construct_single_variable_fct_name
 from .function import make_function
 from . import math
 from .shape import expand_dims
@@ -49,7 +50,7 @@ def reduce_min_backward(out_val, out_grad, x, axis=None):
 _reduce_min = make_function(
     lambda x, axis: x.min(axis=axis),
     reduce_min_backward,
-    lambda x, axis: f"(min {name(x)} axis={axis})",
+    construct_single_variable_fct_name("min", additional_arg_names=("axis",)),
 )
 
 
@@ -93,7 +94,7 @@ def reduce_max_backward(out_val, out_grad, x, axis=None):
 _reduce_max = make_function(
     lambda x, axis: x.max(axis=axis),
     reduce_max_backward,
-    lambda x, axis: f"(max {name(x)} axis={axis})",
+    construct_single_variable_fct_name("max", additional_arg_names=("axis",)),
 )
 
 
@@ -131,7 +132,7 @@ def reduce_sum_backward(out_val, out_grad, x, axis=None):
 _reduce_sum = make_function(
     lambda x, axis: np.sum(x, axis=axis),
     reduce_sum_backward,
-    lambda x, axis: f"(sum {name(x)} axis={axis})",
+    construct_single_variable_fct_name("sum", additional_arg_names=("axis",)),
 )
 
 
@@ -190,7 +191,7 @@ def reduce_std(x, axis=None):
         axis: the axis along which to perform the reduction (if None, reduce over all axes)
 
     Returns:
-        If axis is None: the standard deviaion of all values in x
+        If axis is None: the standard deviation of all values in x
         If axis is not None: a tensor with one fewer dimension than x containing the
             standard deviation of the values in x along axis
 
