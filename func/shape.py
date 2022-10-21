@@ -30,12 +30,19 @@ def reshape(x, newshape):
     return __reshape(x, newshape)
 
 
+def reshape_backward(out_val, out_grad, x, newshape):
+    if isinstance(out_grad, dict):
+        # value of out_grad is a dict containing key out_abs_val_grad and maybe out_entropy
+        out_grad = out_grad["out_abs_val_grad"]
+    return (
+        np.reshape(out_grad, x.shape),
+        None,
+    )
+
+
 __reshape = make_function(
     np.reshape,
-    lambda out_val, out_grad, x, newshape: (
-        np.reshape(out_grad if not isinstance(out_grad, dict) else out_grad["out_grad"], x.shape),
-        None,
-    ),  # if out_grad is a dict, then it contains the out_grad and out_entropy keys. Here, we only want out_grad
+    reshape_backward,
     construct_single_variable_fct_name("reshape", additional_arg_names=("shape",)),
 )
 
@@ -58,12 +65,19 @@ def squeeze(x, axis=None):
     return _squeeze(x, axis)
 
 
+def squeeze_backward(out_val, out_grad, x, axis):
+    if isinstance(out_grad, dict):
+        # value of out_grad is a dict containing key out_abs_val_grad and maybe out_entropy
+        out_grad = out_grad["out_abs_val_grad"]
+    return (
+        np.reshape(out_grad, x.shape),
+        None,
+    )
+
+
 _squeeze = make_function(
     np.squeeze,
-    lambda out_val, out_grad, x, axis: (
-        np.reshape(out_grad if not isinstance(out_grad, dict) else out_grad["out_grad"], x.shape),
-        None,
-    ),
+    squeeze_backward,
     construct_single_variable_fct_name("squeeze", additional_arg_names=("axis",)),
 )
 
@@ -86,12 +100,19 @@ def expand_dims(x, axis):
     return __expand_dims(x, axis)
 
 
+def expand_dims_backward(out_val, out_grad, x, axis):
+    if isinstance(out_grad, dict):
+        # value of out_grad is a dict containing key out_abs_val_grad and maybe out_entropy
+        out_grad = out_grad["out_abs_val_grad"]
+    return (
+        np.reshape(out_grad, x.shape),
+        None,
+    )
+
+
 __expand_dims = make_function(
     np.expand_dims,
-    lambda out_val, out_grad, x, axis: (
-        np.reshape(out_grad if not isinstance(out_grad, dict) else out_grad["out_grad"], x.shape),
-        None,
-    ),
+    expand_dims_backward,
     construct_single_variable_fct_name("expand_dims", additional_arg_names=("axis",)),
 )
 
@@ -119,8 +140,8 @@ def concat(xs, axis=0):
 
 def concat_backward(out_val, out_grad, axis, *xs):
     if isinstance(out_grad, dict):
-        # value of out_grad is a dict containing keys out_grad and out_entropy
-        out_grad = out_grad["out_grad"]
+        # value of out_grad is a dict containing key out_abs_val_grad and maybe out_entropy
+        out_grad = out_grad["out_abs_val_grad"]
     ret_grads = [None]  # no adjoint for the 'axis' argument
     start_idx = 0
     for x in xs:
@@ -208,8 +229,8 @@ def get_item(x, arg):
 
 def getitem_backward(out_val, out_grad, x, arg):
     if isinstance(out_grad, dict):
-        # value of out_grad is a dict containing keys out_grad and out_entropy
-        out_grad = out_grad["out_grad"]
+        # value of out_grad is a dict containing key out_abs_val_grad and maybe out_entropy
+        out_grad = out_grad["out_abs_val_grad"]
     grad = np.zeros_like(x)
     grad[arg] = out_grad
     return grad, None

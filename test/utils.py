@@ -1,21 +1,26 @@
 from collections.abc import Iterable
+from typing import List
 import brunoflow as bf
 import numpy as np
 import random
 import torch
 from functools import reduce
 
+from brunoflow.ad.node import Node
+
 rtol = 1e-05
 atol = 1e-08
+
 
 class TestInput:
     def __init__(self, name, vals):
         self.name = name
         self.vals = vals
 
+
 def inputs_to_params(inp, lift_every_other=False):
     ret = []
-    for i,val in enumerate(inp.vals):
+    for i, val in enumerate(inp.vals):
         if isinstance(val, int) or (isinstance(val, np.ndarray) and val.dtype == int):
             ret.append(val)
         elif not lift_every_other or i % 2 == 0:
@@ -23,6 +28,7 @@ def inputs_to_params(inp, lift_every_other=False):
         else:
             ret.append(val)
     return ret
+
 
 def inputs_to_torch(inp, requires_grad=False):
     ret = []
@@ -36,6 +42,7 @@ def inputs_to_torch(inp, requires_grad=False):
         else:
             ret.append(torch.tensor(val, requires_grad=requires_grad))
     return ret
+
 
 def check(self, x, target):
     if isinstance(x, bf.ad.Node):
@@ -57,10 +64,12 @@ def check(self, x, target):
         for i in range(len(x)):
             check(self, x[i], target[i])
     else:
-        raise TypeError(f'Unknown type of x in check: {type(x)}')
+        raise TypeError(f"Unknown type of x in check: {type(x)}")
+
 
 def add_forward_tests(clss, basename, fn, torch_fn, inputs, lift_every_other=False):
     for inp in inputs:
+
         def test_forward(self):
             # print('======= FORWARD TEST =======')
             x = inputs_to_params(inp, lift_every_other)
@@ -72,10 +81,13 @@ def add_forward_tests(clss, basename, fn, torch_fn, inputs, lift_every_other=Fal
             # print('y:', y)
             # print('y_t:', y_t)
             check(self, y, y_t)
-        setattr(clss, f'test_forward_{basename}_{inp.name}', test_forward)
+
+        setattr(clss, f"test_forward_{basename}_{inp.name}", test_forward)
+
 
 def add_backward_tests(clss, basename, fn, torch_fn, inputs, lift_every_other=False):
     for inp in inputs:
+
         def test_backward(self):
             x = inputs_to_params(inp, lift_every_other)
             x_t = inputs_to_torch(inp, requires_grad=True)
@@ -95,25 +107,57 @@ def add_backward_tests(clss, basename, fn, torch_fn, inputs, lift_every_other=Fa
                 for x_ in x_t:
                     if x_.requires_grad:
                         x_.grad.zero_()
-        setattr(clss, f'test_backward_{basename}_{inp.name}', test_backward)
+
+        setattr(clss, f"test_backward_{basename}_{inp.name}", test_backward)
+
 
 def add_tests(clss, basename, fn, torch_fn, inputs, test_backward=True):
-    
+
     add_forward_tests(clss, basename, fn, torch_fn, inputs)
     if test_backward:
         add_backward_tests(clss, basename, fn, torch_fn, inputs)
     # Version where some inputs aren't lifted to be Parameters
     if len(inputs[0].vals) > 1:
-        add_forward_tests(clss, basename+'_halflifted', fn, torch_fn, inputs, lift_every_other=True)
+        add_forward_tests(clss, basename + "_halflifted", fn, torch_fn, inputs, lift_every_other=True)
         if test_backward:
-            add_backward_tests(clss, basename+'_halflifted', fn, torch_fn, inputs, lift_every_other=True)
+            add_backward_tests(clss, basename + "_halflifted", fn, torch_fn, inputs, lift_every_other=True)
+
 
 def inputs(input_vals):
-    return [TestInput(f'input{i}', vals) for i,vals in enumerate(input_vals)]
+    return [TestInput(f"input{i}", vals) for i, vals in enumerate(input_vals)]
+
 
 def random_inputs(input_shapes, rand=np.random.normal):
-    return [TestInput(\
-                reduce(lambda a,b: a + 'x' + b, [str(shape) for shape in shapes]),\
-                [rand(size=shape) for shape in shapes]\
-            )
-        for shapes in input_shapes]
+    return [
+        TestInput(
+            reduce(lambda a, b: a + "x" + b, [str(shape) for shape in shapes]), [rand(size=shape) for shape in shapes]
+        )
+        for shapes in input_shapes
+    ]
+
+
+def get_all_paths_to_node(curr_node: Node) -> List[List[Node]]:
+    # Helper for bruteforce computing backprop values
+    if not curr_node.inputs:
+        return [[curr_node]]
+    all_paths_to_curr_node = []
+    for inp in curr_node.inputs:
+        if isinstance(inp, Node):
+            paths_to_inp = get_all_paths_to_node(inp)
+            all_paths_to_curr_node_through_inp = [path + [curr_node] for path in paths_to_inp]
+            all_paths_to_curr_node += all_paths_to_curr_node_through_inp
+    return all_paths_to_curr_node
+
+
+def get_all_paths_from_src_to_target_node(target_node: Node, src_node: Node) -> List[List[Node]]:
+    # Helper for bruteforce computing backprop values
+    all_paths = get_all_paths_to_node(target_node)
+    all_paths_from_src_to_target = [
+        path for path in all_paths if np.all((path[0] == src_node).val)
+    ]  # Note - equality is simply checking if the value of the two nodes is the same, so be careful!
+    print(all_paths_from_src_to_target)
+    return all_paths_from_src_to_target
+
+
+def compute_path_values(paths: List[List[Node]]) -> List[float]:
+    pass

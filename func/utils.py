@@ -3,10 +3,26 @@ import itertools
 from brunoflow.ad import name
 
 
-COLORS = itertools.cycle([Fore.BLUE, Fore.RED, Fore.GREEN, Fore.YELLOW, Fore.MAGENTA])
+COLORS = itertools.cycle(
+    [
+        Fore.BLUE,
+        Fore.RED,
+        Fore.GREEN,
+        Fore.YELLOW,
+        Fore.CYAN,
+        Fore.MAGENTA,
+        Fore.LIGHTBLUE_EX,
+        Fore.LIGHTRED_EX,
+        Fore.LIGHTGREEN_EX,
+        Fore.LIGHTYELLOW_EX,
+        Fore.LIGHTCYAN_EX,
+        Fore.LIGHTMAGENTA_EX,
+    ]
+)
 global COLOR_STACK
 global color
 COLOR_STACK = [(Style.RESET_ALL, Style.RESET_ALL)]
+USE_COLOR = False
 
 
 def compute_additional_args_str(additional_arg_names, args):
@@ -31,8 +47,7 @@ def construct_single_variable_fct_name(fct_name, additional_arg_names=tuple()):
 
     def f(x, *args):
         output_str = f"({fct_name} {name(x)}{compute_additional_args_str(additional_arg_names, args)})"
-        # return output_str
-        return colorify(output_str)
+        return colorify(output_str) if USE_COLOR else output_str
 
     return f
 
@@ -43,7 +58,6 @@ def construct_double_variable_fct_name(fct_name, additional_arg_names=tuple()):
 
     def f(a, b, *args):
         output_str = f"({fct_name} {name(a)} {name(b)}{compute_additional_args_str(additional_arg_names, args)})"
-        # return output_str
-        return colorify(output_str)
+        return colorify(output_str) if USE_COLOR else output_str
 
     return f

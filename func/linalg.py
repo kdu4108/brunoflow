@@ -22,9 +22,10 @@ def transpose(x, axes):
 
 
 def transpose_backward(out_val, out_grad, x, axes):
+    # This should be safe for abs_val_grad
     if isinstance(out_grad, dict):
-        # value of out_grad is a dict containing keys out_grad and out_entropy
-        out_grad = out_grad["out_grad"]
+        # value of out_grad is a dict containing key out_abs_val_grad and maybe out_entropy
+        out_grad = out_grad["out_abs_val_grad"]
     inverse_perm = np.arange(len(axes))[np.argsort(axes)]
     return np.transpose(out_grad, inverse_perm), None
 
@@ -74,9 +75,19 @@ def diag(x, k=0):
 
 
 def diag_backward(out_val, out_grad, x, k):
+    """
+    This function is used to compute d(output)/d(input_to_diag), aka the gradient of the output node (e.g. loss) w.r.t. the input of the diag function.
+    It is NOT in the form of d(diag)/d(input_to_diag) * d(output)/d(diag) (aka local_gradient * out_grad) because of weird shape things?
+    We can compute it directly though, as shown here.
+
+    This function is also used to compute d_abs(output)/d_abs(input_to_diag) by the upstream function passing in
+        diag_node.abs_val_grad for out_grad (instead of diag_node.grad). This is safe here because, by inspection of the function, we have the invariant that
+        (diag_node.abs_val_grad >= 0) ==> (diag_backward(diag_node.abs_val_grad) >= 0).
+    """
+    # in this function, the value of out_grad may also doubles as the abs_val_grad too. Since abs_val_grad is enforced to be
     if isinstance(out_grad, dict):
-        # value of out_grad is a dict containing keys out_grad and out_entropy
-        out_grad = out_grad["out_grad"]
+        # value of out_grad is a dict containing key out_abs_val_grad and maybe out_entropy
+        out_grad = out_grad["out_abs_val_grad"]
     if x.ndim == 2:
         return diagflat_nonsquare(out_grad, k, x.shape)
     else:
@@ -130,12 +141,23 @@ def det(x):
     return __det(x)
 
 
+# This function is used to compute d(output)/d(input_to_det), aka the gradient of the output node (e.g. loss) w.r.t. the input of the det function.
+# It is NOT in the form of d(det)/d(input_to_det) * d(output)/d(det) (aka local_gradient * out_grad) because of weird shape things?
+# We can compute it directly though, as shown here.
+
+# This function is also used to compute d_abs(output)/d_abs(input_to_det) by the upstream function passing in
+#     det_node.abs_val_grad for out_grad (instead of det_node.grad). This is safe here because, by inspection of the function, we have the invariant that
+#     (det_node.abs_val_grad >= 0) ==> (det_backward(det_node.abs_val_grad) >= 0).
+def det_backward(out_val, out_grad, x):
+    if isinstance(out_grad, dict):
+        # value of out_grad is a dict containing key out_abs_val_grad and maybe out_entropy
+        out_grad = out_grad["out_abs_val_grad"]
+    return np.expand_dims(np.expand_dims(out_val * out_grad, -1), -1) * __np_matrix_transpose(np.linalg.inv(x))
+
+
 __det = make_function(
     lambda x: np.linalg.det(x),
-    lambda out_val, out_grad, x: np.expand_dims(
-        np.expand_dims(out_val * (out_grad if not isinstance(out_grad, dict) else out_grad["out_grad"]), -1), -1
-    )
-    * __np_matrix_transpose(np.linalg.inv(x)),
+    det_backward,
     construct_single_variable_fct_name("det"),
 )
 
@@ -152,10 +174,21 @@ def inv(x):
 
 
 def inv_backward(out_val, out_grad, x):
-    out_val_T = __np_matrix_transpose(out_val)
-    return -np.matmul(
-        out_val_T, np.matmul(out_grad if not isinstance(out_grad, dict) else out_grad["out_grad"], out_val_T)
+    """This might not be safe with entropy/abs val computations?"""
+    # TODO: fix this one!
+    print(
+        "WARNING: computing entropy and abs_val_grad of a graph containing this `bf.linalg.inv` function may "
+        "not be safe because the output of the backward pass may be negative, even if out_grad=inv_node.abs_val_grad is positive."
+        "If this node is required as part of a computation graph, then refactor code so that this computes "
+        "d_abs(output)/d_abs(input_to_inv) s.t. it MUST be non-negative."
     )
+    is_abs_val_grad = isinstance(out_grad, dict)
+    if is_abs_val_grad:
+        # value of out_grad is a dict containing key out_abs_val_grad and maybe out_entropy
+        out_grad = out_grad["out_abs_val_grad"]
+
+    out_val_T = __np_matrix_transpose(out_val)
+    return -np.matmul(out_val_T, np.matmul(out_grad, out_val_T))
 
 
 __inv = make_function(lambda x: np.linalg.inv(x), inv_backward, construct_single_variable_fct_name("inv"))
@@ -199,12 +232,23 @@ def norm(x, axis=None):
 
 
 # Matrix multiplication and its infix operator (@)
+def matmul_backward(out_val, out_grad, A, B):
+    A_factor = np.copy(A)
+    B_factor = np.copy(B)
+    if isinstance(out_grad, dict):
+        out_grad = out_grad["out_abs_val_grad"]
+        A_factor = np.abs(A_factor)
+        B_factor = np.abs(B_factor)
+
+    return (
+        np.matmul(out_grad, __np_matrix_transpose(B_factor)),
+        np.matmul(__np_matrix_transpose(A_factor), out_grad),
+    )
+
+
 matmul = make_function(
     lambda A, B: np.matmul(A, B),
-    lambda out_val, out_grad, A, B: (
-        np.matmul(out_grad if not isinstance(out_grad, dict) else out_grad["out_grad"], __np_matrix_transpose(B)),
-        np.matmul(__np_matrix_transpose(A), out_grad if not isinstance(out_grad, dict) else out_grad["out_grad"]),
-    ),
+    matmul_backward,
     construct_double_variable_fct_name("matmul"),
 )
 Node.__matmul__ = matmul
