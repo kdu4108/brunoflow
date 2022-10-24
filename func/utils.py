@@ -1,7 +1,7 @@
 from typing import Union
 from colorama import Fore, Style
 import itertools
-from brunoflow.ad import name
+from brunoflow.ad import name, Node
 
 
 COLORS = itertools.cycle(
@@ -23,7 +23,7 @@ COLORS = itertools.cycle(
 global COLOR_STACK
 global color
 COLOR_STACK = [(Style.RESET_ALL, Style.RESET_ALL)]
-USE_COLOR = True
+USE_COLOR = False
 
 
 def compute_additional_args_str(additional_arg_names, args):

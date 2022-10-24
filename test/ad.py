@@ -1,10 +1,12 @@
 from typing_extensions import assert_type
 import brunoflow as bf
 import numpy as np
+import scipy.stats as ss
 import unittest as ut
 
 from brunoflow.ad import name
 from brunoflow.ad.node import Node
+from brunoflow.func.utils import print_vals_for_all_children
 from brunoflow.test.utils import get_all_paths_from_src_to_target_node, get_all_paths_to_node
 
 
@@ -380,7 +382,6 @@ class AutodiffEntropyTestCase(ut.TestCase):
         )
 
     def test_entropy_reduce_logsumexp(self):
-        # TODO: finish writing this actual test case
         x_bf = bf.Parameter(np.array([[2.0, 1.0]]), name="x")
         out = bf.func.reduce_logsumexp(x_bf, axis=-1)
         out.backprop(verbose=True)
@@ -410,6 +411,46 @@ class AutodiffEntropyTestCase(ut.TestCase):
         self.assertTrue(np.allclose(x_bf.compute_entropy(), [[1.30172274e00, 4.44089210e-16]]))
 
     def test_entropy_linear(self):
+        x_bf = bf.Parameter(np.array([[3.0]]), name="x")
+
+        linear_bf = bf.net.Linear(1, 2)
+        linear_bf.set_weights(np.array([[2.0, 1.0]]))
+        linear_bf.set_bias(np.array([0.0, 0.0]))
+
+        output = linear_bf(x_bf)
+        output.backprop(verbose=True)
+
+        # There's two paths x can take to the end - one with weight 2, 1 with weight 1, so it's just the entropy of that distribution.
+        self.assertEqual(x_bf.compute_entropy(), [[ss.entropy([2 / 3, 1 / 3])]])
+
+    def test_entropy_linear_neg_weights(self):
+        x_bf = bf.Parameter(np.array([[3.0]]), name="x")
+
+        linear_bf = bf.net.Linear(1, 2)
+        linear_bf.set_weights(np.array([[-2.0, 1.0]]))
+        linear_bf.set_bias(np.array([0.0, 0.0]))
+
+        output = linear_bf(x_bf)
+        output.backprop(verbose=True)
+
+        # There's two paths x can take to the end - one with weight 2, 1 with weight 1, so it's just the entropy of that distribution.
+        self.assertEqual(x_bf.compute_entropy(), [[ss.entropy([2 / 3, 1 / 3])]])
+
+    def test_entropy_linear_with_bias(self):
+        x_bf = bf.Parameter(np.array([[3.0]]), name="x")
+
+        linear_bf = bf.net.Linear(1, 2)
+        linear_bf.set_weights(np.array([[-2.0, 1.0]]))
+        linear_bf.set_bias(np.array([4.0, 5.0]))
+
+        output = linear_bf(x_bf)
+        output.backprop(verbose=True)
+
+        # Even with bias, there's two paths x can take to the end -
+        # and the decision point has one with weight 2, 1 with weight 1, so it's just the entropy of that distribution.
+        self.assertEqual(x_bf.compute_entropy(), [[ss.entropy([2 / 3, 1 / 3])]])
+
+    def test_entropy_linear_with_loss(self):
         # TODO: finish writing this actual test case
         x_bf = bf.Parameter(np.array([[3.0]]), name="x")
         y_bf = bf.Parameter(np.array([0]), name="y")
@@ -460,20 +501,6 @@ class AutodiffEntropyTestCase(ut.TestCase):
         )
         # print(loss.construct_graph())
         # loss.visualize()
-
-    def test_entropy_linear_neg_weights(self):
-        x_bf = bf.Parameter(np.array([[-3.0]]), name="x")
-        y_bf = bf.Parameter(np.array([0]), name="y")
-
-        linear_bf = bf.net.Linear(1, 2)
-        linear_bf.set_weights(np.array([[-2.0, -1.0]]))
-        linear_bf.set_bias(np.array([0.0, 0.0]))
-
-        output = linear_bf(x_bf)
-        loss = bf.opt.cross_entropy_loss(output, y_bf)
-
-        loss.backprop(verbose=True)
-        print(x_bf.compute_entropy())
 
 
 class BruteForceTestCase(ut.TestCase):
