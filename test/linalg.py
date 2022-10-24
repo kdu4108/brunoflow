@@ -2,15 +2,68 @@ import unittest as ut
 import brunoflow as bf
 import numpy as np
 import torch
+import scipy.stats as ss
 from . import utils
 
 
 class LinalgTestCase(ut.TestCase):
-    def test_matmul_abs_val_grad(self):
-        x_bf = bf.Node(np.array([[1, 2], [3, 4]]))
-        y_bf = bf.Node(np.array([[1, 2], [3, -4]]))
+    def test_matmul_1x1_abs_val_grad_and_entropy(self):
+        x_bf = bf.Node(np.array([[2]]))
+        y_bf = bf.Node(np.array([[-9]]))
         out = x_bf @ y_bf
         out.backprop()
+        self.assertTrue(np.array_equal(x_bf.grad, [[-9]]))
+        self.assertTrue(np.array_equal(y_bf.grad, [[2]]))
+        self.assertTrue(np.array_equal(x_bf.abs_val_grad, [[9]]))
+        self.assertTrue(np.array_equal(y_bf.abs_val_grad, [[2]]))
+        self.assertTrue(np.array_equal(x_bf.compute_entropy(), [[0]]))
+        self.assertTrue(np.array_equal(y_bf.compute_entropy(), [[0]]))
+
+    def test_matmul_1x2_abs_val_grad_and_entropy(self):
+        x_bf = bf.Node(np.array([[1, 2]]))
+        y_bf = bf.Node(np.array([[3], [-9]]))
+        out = x_bf @ y_bf
+        out.backprop()
+        self.assertTrue(np.array_equal(x_bf.grad, np.array([[3, -9]])))
+        self.assertTrue(np.array_equal(y_bf.grad, np.array([[1], [2]])))
+        self.assertTrue(np.array_equal(x_bf.abs_val_grad, np.array([[3, 9]])))
+        self.assertTrue(np.array_equal(y_bf.abs_val_grad, np.array([[1], [2]])))
+        self.assertTrue(np.array_equal(x_bf.compute_entropy(), np.array([[0, 0]])))
+        self.assertTrue(np.array_equal(y_bf.compute_entropy(), np.array([[0], [0]])))
+
+    def test_matmul_1_times_1x2_abs_val_grad_and_entropy(self):
+        x_bf = bf.Node(np.array([[2]]))
+        y_bf = bf.Node(np.array([[3, -9]]))
+        out = x_bf @ y_bf
+        out.backprop()
+
+        # "out_grad" here is simply the identity [[1], [1]], so the "weighted sum" of how the different components of y contributes to the derivative w.r.t. to x is just the sum?
+        self.assertTrue(np.array_equal(x_bf.grad, np.array([[-6]])))
+        self.assertTrue(np.array_equal(y_bf.grad, np.array([[2, 2]])))
+        self.assertTrue(np.array_equal(x_bf.abs_val_grad, np.array([[12]])))
+        self.assertTrue(np.array_equal(y_bf.abs_val_grad, np.array([[2, 2]])))
+        self.assertTrue(np.allclose(x_bf.compute_entropy(), np.array([[ss.entropy([0.25, 0.75])]])))
+        self.assertTrue(np.array_equal(y_bf.compute_entropy(), np.array([[0, 0]])))
+
+    def test_matmul_2x1_times_1x2_abs_val_grad_and_entropy(self):
+        x_bf = bf.Node(np.array([[2], [8]]))
+        y_bf = bf.Node(np.array([[3, -9]]))
+        out = x_bf @ y_bf
+        out.backprop()
+        print(x_bf.grad)
+        print(y_bf.grad)
+
+        # "out_grad" here is simply the identity [[1], [1]], so the "weighted sum" of how the different components of y contributes to the derivative w.r.t. to x is just the sum?
+        self.assertTrue(np.array_equal(x_bf.grad, np.array([[-6], [-6]])))
+        self.assertTrue(np.array_equal(y_bf.grad, np.array([[10, 10]])))
+        self.assertTrue(np.array_equal(x_bf.abs_val_grad, np.array([[12], [12]])))
+        self.assertTrue(np.array_equal(y_bf.abs_val_grad, np.array([[10, 10]])))
+        self.assertTrue(
+            np.allclose(x_bf.compute_entropy(), np.array([[ss.entropy([0.25, 0.75]), ss.entropy([0.25, 0.75])]]))
+        )
+        self.assertTrue(
+            np.array_equal(y_bf.compute_entropy(), np.array([[ss.entropy([0.2, 0.8]), ss.entropy([0.2, 0.8])]]))
+        )
 
 
 ######################################################

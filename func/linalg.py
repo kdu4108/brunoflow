@@ -235,6 +235,19 @@ def norm(x, axis=None):
 def matmul_backward(out_val, out_grad, A, B):
     A_factor = np.copy(A)
     B_factor = np.copy(B)
+    if isinstance(out_grad, dict) and "out_entropy" in out_grad:
+        out_entropy = out_grad["out_entropy"]
+        out_abs_val_grad = out_grad["out_abs_val_grad"]
+        A_factor = np.abs(A_factor)
+        B_factor = np.abs(B_factor)
+
+        return (
+            np.matmul(out_entropy, __np_matrix_transpose(B_factor))
+            + np.matmul(out_abs_val_grad, __np_matrix_transpose(np.multiply(-B_factor, np.log(B_factor)))),
+            np.matmul(__np_matrix_transpose(A_factor), out_entropy)
+            + np.matmul(__np_matrix_transpose(np.multiply(-A_factor, np.log(A_factor))), out_abs_val_grad),
+        )
+
     if isinstance(out_grad, dict):
         out_grad = out_grad["out_abs_val_grad"]
         A_factor = np.abs(A_factor)
