@@ -385,20 +385,29 @@ class AutodiffEntropyTestCase(ut.TestCase):
         out = bf.func.reduce_logsumexp(x_bf, axis=-1)
         out.backprop(verbose=True)
 
-        print("abs val grad:", x_bf.abs_val_grad)
-        print("out grad:", out.grad)
-
-        # Used for debugging and seeing what values are there.
-        def dfs(node, visited=set()):
-            print(f"{name(node)}: {node.grad}")
-            for inp in node.inputs:
-                if isinstance(inp, Node) and inp not in visited:
-                    visited.add(inp)
-                    dfs(inp, visited)
-
-        dfs(out)
-
-        # This function should have the correct values? maybe?
+        self.assertTrue(np.allclose(x_bf.grad, [[1 / (1 + 1 / np.e) * np.exp(0), 1 / (1 + 1 / np.e) * np.exp(-1)]]))
+        self.assertTrue(
+            np.allclose(x_bf.abs_val_grad, [[2 + 1 / (1 + 1 / np.e) * np.exp(0), 1 / (1 + 1 / np.e) * np.exp(-1)]])
+        )
+        self.assertTrue(
+            np.allclose(
+                x_bf.entropy_wrt_output,
+                [
+                    [
+                        -np.array(1 / (1 + 1 / np.e)) * np.log(np.array(1 / (1 + 1 / np.e)))
+                        + np.sum(
+                            -np.array([[1 / (1 + 1 / np.e), 1 / (1 + 1 / np.e) * np.exp(-1)]])
+                            * np.log(np.array([[1 / (1 + 1 / np.e), 1 / (1 + 1 / np.e) * np.exp(-1)]]))
+                        ),
+                        (
+                            -np.array([[1 / (1 + 1 / np.e), 1 / (1 + 1 / np.e) * np.exp(-1)]])
+                            * np.log(np.array([[1 / (1 + 1 / np.e), 1 / (1 + 1 / np.e) * np.exp(-1)]]))
+                        )[0, 1],
+                    ]
+                ],
+            )
+        )
+        self.assertTrue(np.allclose(x_bf.compute_entropy(), [[1.30172274e00, 4.44089210e-16]]))
 
     def test_entropy_linear(self):
         # TODO: finish writing this actual test case
@@ -452,18 +461,19 @@ class AutodiffEntropyTestCase(ut.TestCase):
         # print(loss.construct_graph())
         # loss.visualize()
 
-    def test_entropy_linear_neg_vals(self):
+    def test_entropy_linear_neg_weights(self):
         x_bf = bf.Parameter(np.array([[-3.0]]), name="x")
         y_bf = bf.Parameter(np.array([0]), name="y")
 
         linear_bf = bf.net.Linear(1, 2)
-        linear_bf.set_weights(np.array([[2.0, 1.0]]))
+        linear_bf.set_weights(np.array([[-2.0, -1.0]]))
         linear_bf.set_bias(np.array([0.0, 0.0]))
 
         output = linear_bf(x_bf)
         loss = bf.opt.cross_entropy_loss(output, y_bf)
 
         loss.backprop(verbose=True)
+        print(x_bf.compute_entropy())
 
 
 class BruteForceTestCase(ut.TestCase):

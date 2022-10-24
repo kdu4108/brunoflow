@@ -186,7 +186,7 @@ class Node:
                 # print("backward_func:", backward_func.__name__)
                 adjoints_entropy = backward_func(
                     self.val,
-                    dict(out_grad=self.grad, out_abs_val_grad=self.abs_val_grad, out_entropy=self.entropy_wrt_output),
+                    dict(out_abs_val_grad=self.abs_val_grad, out_entropy=self.entropy_wrt_output),
                     *input_vals,
                     product_fn=(
                         lambda l_adj, out_grad_and_entropy_dict: np.abs(l_adj)

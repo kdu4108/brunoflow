@@ -23,7 +23,7 @@ COLORS = itertools.cycle(
 global COLOR_STACK
 global color
 COLOR_STACK = [(Style.RESET_ALL, Style.RESET_ALL)]
-USE_COLOR = False
+USE_COLOR = True
 
 
 def compute_additional_args_str(additional_arg_names, args):
@@ -93,3 +93,12 @@ def get_relevant_out_grad_val(out_grad: Union[dict, int]):
             )
 
     return out_grad
+
+
+# Used for debugging and seeing what values are there.
+def print_vals_for_all_children(node, visited=set()):
+    print(f"{name(node)}: {node.grad}, {node.abs_val_grad}, {node.entropy_wrt_output}")
+    for inp in node.inputs:
+        if isinstance(inp, Node) and inp not in visited:
+            visited.add(inp)
+            print_vals_for_all_children(inp, visited)
