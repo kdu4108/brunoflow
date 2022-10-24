@@ -53,7 +53,7 @@ class LinalgTestCase(ut.TestCase):
         print(x_bf.grad)
         print(y_bf.grad)
 
-        # "out_grad" here is simply the identity [[1], [1]], so the "weighted sum" of how the different components of y contributes to the derivative w.r.t. to x is just the sum?
+        # "out_grad" here is simply the identity [[1, 1], [1, 1]], so the "weighted sum" of how the different components of y contributes to the derivative w.r.t. to x is just the sum?
         self.assertTrue(np.array_equal(x_bf.grad, np.array([[-6], [-6]])))
         self.assertTrue(np.array_equal(y_bf.grad, np.array([[10, 10]])))
         self.assertTrue(np.array_equal(x_bf.abs_val_grad, np.array([[12], [12]])))
