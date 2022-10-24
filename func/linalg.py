@@ -7,7 +7,11 @@ from .function import make_function
 from .reductions import *
 from . import math
 from ..ad import Node
-from brunoflow.func.utils import construct_single_variable_fct_name, construct_double_variable_fct_name
+from brunoflow.func.utils import (
+    construct_single_variable_fct_name,
+    construct_double_variable_fct_name,
+    get_relevant_out_grad_val,
+)
 
 
 def transpose(x, axes):
@@ -22,10 +26,12 @@ def transpose(x, axes):
 
 
 def transpose_backward(out_val, out_grad, x, axes):
-    # This should be safe for abs_val_grad
-    if isinstance(out_grad, dict):
-        # value of out_grad is a dict containing key out_abs_val_grad and maybe out_entropy
-        out_grad = out_grad["out_abs_val_grad"]
+    # In this function, the value of out_grad represents the upstream accumulated value for a semiring.
+    #  So, out_grad may be an int representing the accumulated semiring value (e.g. gradient)
+    #  or, if the semiring is more complicated, a dict containing the components of the accumulated
+    #  semiring value (e.g. the abs_val_grad and entropy).
+    # Extract the appropriate value for the semiring.
+    out_grad = get_relevant_out_grad_val(out_grad)
     inverse_perm = np.arange(len(axes))[np.argsort(axes)]
     return np.transpose(out_grad, inverse_perm), None
 
@@ -84,10 +90,12 @@ def diag_backward(out_val, out_grad, x, k):
         diag_node.abs_val_grad for out_grad (instead of diag_node.grad). This is safe here because, by inspection of the function, we have the invariant that
         (diag_node.abs_val_grad >= 0) ==> (diag_backward(diag_node.abs_val_grad) >= 0).
     """
-    # in this function, the value of out_grad may also doubles as the abs_val_grad too. Since abs_val_grad is enforced to be
-    if isinstance(out_grad, dict):
-        # value of out_grad is a dict containing key out_abs_val_grad and maybe out_entropy
-        out_grad = out_grad["out_abs_val_grad"]
+    # In this function, the value of out_grad represents the upstream accumulated value for a semiring.
+    #  So, out_grad may be an int representing the accumulated semiring value (e.g. gradient)
+    #  or, if the semiring is more complicated, a dict containing the components of the accumulated
+    #  semiring value (e.g. the abs_val_grad and entropy).
+    # Extract the appropriate value for the semiring.
+    out_grad = get_relevant_out_grad_val(out_grad)
     if x.ndim == 2:
         return diagflat_nonsquare(out_grad, k, x.shape)
     else:
@@ -149,9 +157,12 @@ def det(x):
 #     det_node.abs_val_grad for out_grad (instead of det_node.grad). This is safe here because, by inspection of the function, we have the invariant that
 #     (det_node.abs_val_grad >= 0) ==> (det_backward(det_node.abs_val_grad) >= 0).
 def det_backward(out_val, out_grad, x):
-    if isinstance(out_grad, dict):
-        # value of out_grad is a dict containing key out_abs_val_grad and maybe out_entropy
-        out_grad = out_grad["out_abs_val_grad"]
+    # In this function, the value of out_grad represents the upstream accumulated value for a semiring.
+    #  So, out_grad may be an int representing the accumulated semiring value (e.g. gradient)
+    #  or, if the semiring is more complicated, a dict containing the components of the accumulated
+    #  semiring value (e.g. the abs_val_grad and entropy).
+    # Extract the appropriate value for the semiring.
+    out_grad = get_relevant_out_grad_val(out_grad)
     return np.expand_dims(np.expand_dims(out_val * out_grad, -1), -1) * __np_matrix_transpose(np.linalg.inv(x))
 
 
@@ -248,7 +259,7 @@ def matmul_backward(out_val, out_grad, A, B):
             + np.matmul(__np_matrix_transpose(np.multiply(-A_factor, np.log(A_factor))), out_abs_val_grad),
         )
 
-    if isinstance(out_grad, dict):
+    elif isinstance(out_grad, dict):
         out_grad = out_grad["out_abs_val_grad"]
         A_factor = np.abs(A_factor)
         B_factor = np.abs(B_factor)

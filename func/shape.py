@@ -5,7 +5,7 @@ This module defines functions that alter the shape of a tensor/tensors without c
 
 import numpy as np
 from collections.abc import Iterable
-from brunoflow.func.utils import construct_single_variable_fct_name
+from brunoflow.func.utils import construct_single_variable_fct_name, get_relevant_out_grad_val
 from .function import make_function
 from ..ad import Node, name
 
@@ -31,9 +31,12 @@ def reshape(x, newshape):
 
 
 def reshape_backward(out_val, out_grad, x, newshape):
-    if isinstance(out_grad, dict):
-        # value of out_grad is a dict containing key out_abs_val_grad and maybe out_entropy
-        out_grad = out_grad["out_abs_val_grad"]
+    # In this function, the value of out_grad represents the upstream accumulated value for a semiring.
+    #  So, out_grad may be an int representing the accumulated semiring value (e.g. gradient)
+    #  or, if the semiring is more complicated, a dict containing the components of the accumulated
+    #  semiring value (e.g. the abs_val_grad and entropy).
+    # Extract the appropriate value for the semiring.
+    out_grad = get_relevant_out_grad_val(out_grad)
     return (
         np.reshape(out_grad, x.shape),
         None,
@@ -66,9 +69,12 @@ def squeeze(x, axis=None):
 
 
 def squeeze_backward(out_val, out_grad, x, axis):
-    if isinstance(out_grad, dict):
-        # value of out_grad is a dict containing key out_abs_val_grad and maybe out_entropy
-        out_grad = out_grad["out_abs_val_grad"]
+    # In this function, the value of out_grad represents the upstream accumulated value for a semiring.
+    #  So, out_grad may be an int representing the accumulated semiring value (e.g. gradient)
+    #  or, if the semiring is more complicated, a dict containing the components of the accumulated
+    #  semiring value (e.g. the abs_val_grad and entropy).
+    # Extract the appropriate value for the semiring.
+    out_grad = get_relevant_out_grad_val(out_grad)
     return (
         np.reshape(out_grad, x.shape),
         None,
@@ -101,9 +107,12 @@ def expand_dims(x, axis):
 
 
 def expand_dims_backward(out_val, out_grad, x, axis):
-    if isinstance(out_grad, dict):
-        # value of out_grad is a dict containing key out_abs_val_grad and maybe out_entropy
-        out_grad = out_grad["out_abs_val_grad"]
+    # In this function, the value of out_grad represents the upstream accumulated value for a semiring.
+    #  So, out_grad may be an int representing the accumulated semiring value (e.g. gradient)
+    #  or, if the semiring is more complicated, a dict containing the components of the accumulated
+    #  semiring value (e.g. the abs_val_grad and entropy).
+    # Extract the appropriate value for the semiring.
+    out_grad = get_relevant_out_grad_val(out_grad)
     return (
         np.reshape(out_grad, x.shape),
         None,
@@ -139,9 +148,12 @@ def concat(xs, axis=0):
 
 
 def concat_backward(out_val, out_grad, axis, *xs):
-    if isinstance(out_grad, dict):
-        # value of out_grad is a dict containing key out_abs_val_grad and maybe out_entropy
-        out_grad = out_grad["out_abs_val_grad"]
+    # In this function, the value of out_grad represents the upstream accumulated value for a semiring.
+    #  So, out_grad may be an int representing the accumulated semiring value (e.g. gradient)
+    #  or, if the semiring is more complicated, a dict containing the components of the accumulated
+    #  semiring value (e.g. the abs_val_grad and entropy).
+    # Extract the appropriate value for the semiring.
+    out_grad = get_relevant_out_grad_val(out_grad)
     ret_grads = [None]  # no adjoint for the 'axis' argument
     start_idx = 0
     for x in xs:
@@ -228,9 +240,12 @@ def get_item(x, arg):
 
 
 def getitem_backward(out_val, out_grad, x, arg):
-    if isinstance(out_grad, dict):
-        # value of out_grad is a dict containing key out_abs_val_grad and maybe out_entropy
-        out_grad = out_grad["out_abs_val_grad"]
+    # In this function, the value of out_grad represents the upstream accumulated value for a semiring.
+    #  So, out_grad may be an int representing the accumulated semiring value (e.g. gradient)
+    #  or, if the semiring is more complicated, a dict containing the components of the accumulated
+    #  semiring value (e.g. the abs_val_grad and entropy).
+    # Extract the appropriate value for the semiring.
+    out_grad = get_relevant_out_grad_val(out_grad)
     grad = np.zeros_like(x)
     grad[arg] = out_grad
     return grad, None

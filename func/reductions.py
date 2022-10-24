@@ -4,7 +4,7 @@ This module defines functions that perform tensor reductions
 
 import numpy as np
 from brunoflow.ad import name
-from brunoflow.func.utils import construct_single_variable_fct_name
+from brunoflow.func.utils import construct_single_variable_fct_name, get_relevant_out_grad_val
 from .function import make_function
 from . import math
 from .shape import expand_dims
@@ -31,9 +31,12 @@ def reduce_min(x, axis=None):
 
 
 def reduce_min_backward(out_val, out_grad, x, axis=None):
-    if isinstance(out_grad, dict):
-        # value of out_grad is a dict containing key out_abs_val_grad and maybe out_entropy
-        out_grad = out_grad["out_abs_val_grad"]
+    # In this function, the value of out_grad represents the upstream accumulated value for a semiring.
+    #  So, out_grad may be an int representing the accumulated semiring value (e.g. gradient)
+    #  or, if the semiring is more complicated, a dict containing the components of the accumulated
+    #  semiring value (e.g. the abs_val_grad and entropy).
+    # Extract the appropriate value for the semiring.
+    out_grad = get_relevant_out_grad_val(out_grad)
     grad = np.zeros_like(x)
     if axis is None:
         min_index = np.argmin(x)
@@ -75,9 +78,12 @@ def reduce_max(x, axis=None):
 
 
 def reduce_max_backward(out_val, out_grad, x, axis=None):
-    if isinstance(out_grad, dict):
-        # value of out_grad is a dict containing key out_abs_val_grad and maybe out_entropy
-        out_grad = out_grad["out_abs_val_grad"]
+    # In this function, the value of out_grad represents the upstream accumulated value for a semiring.
+    #  So, out_grad may be an int representing the accumulated semiring value (e.g. gradient)
+    #  or, if the semiring is more complicated, a dict containing the components of the accumulated
+    #  semiring value (e.g. the abs_val_grad and entropy).
+    # Extract the appropriate value for the semiring.
+    out_grad = get_relevant_out_grad_val(out_grad)
     grad = np.zeros_like(x)
     if axis is None:
         min_index = np.argmax(x)
@@ -119,9 +125,12 @@ def reduce_sum(x, axis=None):
 
 
 def reduce_sum_backward(out_val, out_grad, x, axis=None):
-    if isinstance(out_grad, dict):
-        # value of out_grad is a dict containing key out_abs_val_grad and maybe out_entropy
-        out_grad = out_grad["out_abs_val_grad"]
+    # In this function, the value of out_grad represents the upstream accumulated value for a semiring.
+    #  So, out_grad may be an int representing the accumulated semiring value (e.g. gradient)
+    #  or, if the semiring is more complicated, a dict containing the components of the accumulated
+    #  semiring value (e.g. the abs_val_grad and entropy).
+    # Extract the appropriate value for the semiring.
+    out_grad = get_relevant_out_grad_val(out_grad)
     if axis is None:
         return np.full(x.shape, out_grad), None
     else:
