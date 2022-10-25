@@ -50,8 +50,6 @@ class LinalgTestCase(ut.TestCase):
         y_bf = bf.Node(np.array([[3, -9]]))
         out = x_bf @ y_bf
         out.backprop()
-        print(x_bf.grad)
-        print(y_bf.grad)
 
         # "out_grad" here is simply the identity [[1, 1], [1, 1]], so the "weighted sum" of how the different components of y contributes to the derivative w.r.t. to x is just the sum?
         self.assertTrue(np.array_equal(x_bf.grad, np.array([[-6], [-6]])))

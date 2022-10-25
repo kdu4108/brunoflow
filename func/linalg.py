@@ -187,17 +187,14 @@ def inv(x):
 def inv_backward(out_val, out_grad, x):
     """This might not be safe with entropy/abs val computations?"""
     # TODO: fix this one!
-    print(
-        "WARNING: computing entropy and abs_val_grad of a graph containing this `bf.linalg.inv` function may "
-        "not be safe because the output of the backward pass may be negative, even if out_grad=inv_node.abs_val_grad is positive."
-        "If this node is required as part of a computation graph, then refactor code so that this computes "
-        "d_abs(output)/d_abs(input_to_inv) s.t. it MUST be non-negative."
-    )
-    is_abs_val_grad = isinstance(out_grad, dict)
-    if is_abs_val_grad:
-        # value of out_grad is a dict containing key out_abs_val_grad and maybe out_entropy
-        out_grad = out_grad["out_abs_val_grad"]
-
+    if isinstance(out_grad, dict):
+        raise ValueError(
+            "ERROR: calling the backward pass of inv to compute entropy and abs_val_grad of a graph containing this `bf.linalg.inv` function may "
+            "not be safe because the output of the backward pass may be negative, even if out_grad=inv_node.abs_val_grad is positive. "
+            "If this node is required as part of a computation graph, then refactor code so that this computes "
+            "d_abs(output)/d_abs(input_to_inv) s.t. it MUST be non-negative."
+        )
+    out_grad = get_relevant_out_grad_val(out_grad)
     out_val_T = __np_matrix_transpose(out_val)
     return -np.matmul(out_val_T, np.matmul(out_grad, out_val_T))
 

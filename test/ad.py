@@ -282,7 +282,6 @@ class AutodiffMaxGradTestCase(ut.TestCase):
         self.assertTrue(
             x_bf.max_grad_of_output_wrt_node[0] * x_bf + x_bf.max_neg_grad_of_output_wrt_node[0] * x_bf == x_bf.grad
         )
-        print(x_bf.max_grad_of_output_wrt_node[0] * x_bf)
 
         print("x max grad:", x_bf.max_grad_of_output_wrt_node)
         print("x max neg grad:", x_bf.max_neg_grad_of_output_wrt_node)
@@ -343,7 +342,6 @@ class AutodiffEntropyTestCase(ut.TestCase):
         print("x_bf.compute_entropy():", x_bf.compute_entropy())
         print("x_bf grad:", x_bf.grad)
 
-        print(x_bf.compute_entropy())
         print((-2 * 3 * np.log(2 * 3) - 3 * np.log(3)) / (2 * 3 + 3) + np.log(2 * 3 + 3))
         self.assertTrue(
             np.array_equal(
@@ -382,17 +380,20 @@ class AutodiffEntropyTestCase(ut.TestCase):
         )
 
     def test_entropy_reduce_logsumexp(self):
-        x_bf = bf.Parameter(np.array([[2.0, 1.0]]), name="x")
-        out = bf.func.reduce_logsumexp(x_bf, axis=-1)
-        out.backprop(verbose=True)
+        # Note - there's no negs here, but assuming negs work because it's been tested for smaller component functions.
+        output_bf = bf.Parameter(np.array([[2.0, 1.0]]), name="output")
+        reduced_bf = bf.func.reduce_logsumexp(output_bf, axis=-1)
+        reduced_bf.backprop(verbose=True)
 
-        self.assertTrue(np.allclose(x_bf.grad, [[1 / (1 + 1 / np.e) * np.exp(0), 1 / (1 + 1 / np.e) * np.exp(-1)]]))
         self.assertTrue(
-            np.allclose(x_bf.abs_val_grad, [[2 + 1 / (1 + 1 / np.e) * np.exp(0), 1 / (1 + 1 / np.e) * np.exp(-1)]])
+            np.allclose(output_bf.grad, [[1 / (1 + 1 / np.e) * np.exp(0), 1 / (1 + 1 / np.e) * np.exp(-1)]])
+        )
+        self.assertTrue(
+            np.allclose(output_bf.abs_val_grad, [[2 + 1 / (1 + 1 / np.e) * np.exp(0), 1 / (1 + 1 / np.e) * np.exp(-1)]])
         )
         self.assertTrue(
             np.allclose(
-                x_bf.entropy_wrt_output,
+                output_bf.entropy_wrt_output,
                 [
                     [
                         -np.array(1 / (1 + 1 / np.e)) * np.log(np.array(1 / (1 + 1 / np.e)))
@@ -408,7 +409,40 @@ class AutodiffEntropyTestCase(ut.TestCase):
                 ],
             )
         )
-        self.assertTrue(np.allclose(x_bf.compute_entropy(), [[1.30172274e00, 4.44089210e-16]]))
+
+    def test_entropy_cross_entropy_loss_until_reduce_log_sum_exp(self):
+        output_bf = bf.Parameter(np.array([[2.0, 1.0]]), name="output")
+        label_bf = bf.Parameter(np.array([0]), name="label")
+        loss = bf.opt.loss.cross_entropy_loss(output_bf, label_bf, reduction="sum")
+        loss.backprop(verbose=True)
+
+        self.assertTrue(np.allclose(output_bf.grad, [[-0.26894142, 0.26894142]]))
+        self.assertTrue(np.allclose(output_bf.abs_val_grad, [[3.73105858, 0.26894142]]))
+
+        # This is actually the same because the entropy added from the reduce_logsumexp -> CEL is 0,
+        # and the direct contribution of the arc from output_bf -> CEL is 0.
+        self.assertTrue(
+            np.allclose(
+                output_bf.entropy_wrt_output,
+                [
+                    [
+                        -np.array(1 / (1 + 1 / np.e)) * np.log(np.array(1 / (1 + 1 / np.e)))
+                        + np.sum(
+                            -np.array([[1 / (1 + 1 / np.e), 1 / (1 + 1 / np.e) * np.exp(-1)]])
+                            * np.log(np.array([[1 / (1 + 1 / np.e), 1 / (1 + 1 / np.e) * np.exp(-1)]]))
+                        ),
+                        (
+                            -np.array([[1 / (1 + 1 / np.e), 1 / (1 + 1 / np.e) * np.exp(-1)]])
+                            * np.log(np.array([[1 / (1 + 1 / np.e), 1 / (1 + 1 / np.e) * np.exp(-1)]]))
+                        )[0, 1],
+                    ]
+                ],
+            )
+        )
+
+        # This is slightly different now because the total (abs_val) gradient does change,
+        # so even though the unnormalized entropy is the same, the actual entropy changes.
+        self.assertTrue(np.allclose(output_bf.compute_entropy(), [[1.53411441e00, 4.44089210e-16]]))
 
     def test_entropy_linear(self):
         x_bf = bf.Parameter(np.array([[3.0]]), name="x")
@@ -449,58 +483,6 @@ class AutodiffEntropyTestCase(ut.TestCase):
         # Even with bias, there's two paths x can take to the end -
         # and the decision point has one with weight 2, 1 with weight 1, so it's just the entropy of that distribution.
         self.assertEqual(x_bf.compute_entropy(), [[ss.entropy([2 / 3, 1 / 3])]])
-
-    def test_entropy_linear_with_loss(self):
-        # TODO: finish writing this actual test case
-        x_bf = bf.Parameter(np.array([[3.0]]), name="x")
-        y_bf = bf.Parameter(np.array([0]), name="y")
-
-        linear_bf = bf.net.Linear(1, 2)
-        linear_bf.set_weights(np.array([[2.0, 1.0]]))
-        linear_bf.set_bias(np.array([0.0, 0.0]))
-
-        output = linear_bf(x_bf)
-        loss = bf.opt.cross_entropy_loss(output, y_bf)
-
-        loss.backprop(verbose=True)
-
-        # Check the positive max grad of input x has expected value and parent node (where parent in this case means "closer in the graph to the output")
-        # self.assertTrue(
-        #     np.allclose(x_bf.max_grad_of_output_wrt_node[0], [[4.00012339]])
-        # )  # this comes from matmul(outgrad, weights), as defined by the matmul derivative. So, [[1.0, 1.2339e-04]] * [[4, 1]] = 4 + 0.00012339.
-        # self.assertTrue(
-        #     np.allclose(x_bf.max_neg_grad_of_output_wrt_node[0], [[-4.0]])
-        # )  # this comes from matmul(outgrad, weights), as defined by the matmul derivative. So, [[-1.0, 0.]] * [[4, 1]] = -4.
-        # self.assertTrue(
-        #     x_bf.max_grad_of_output_wrt_node[0] * x_bf + x_bf.max_neg_grad_of_output_wrt_node[0] * x_bf == x_bf.grad
-        # )
-        print(x_bf.max_grad_of_output_wrt_node[0] * x_bf)
-
-        print("x max grad:", x_bf.max_grad_of_output_wrt_node)
-        print("x max neg grad:", x_bf.max_neg_grad_of_output_wrt_node)
-        print("x grad:", x_bf.grad)
-
-        print("w max grad:", linear_bf.W.max_grad_of_output_wrt_node)
-        print("w max neg grad:", linear_bf.W.max_neg_grad_of_output_wrt_node)
-        print("w grad:", linear_bf.W.grad)
-
-        print("x_bf.abs_val_grad:", x_bf.abs_val_grad)
-        print("x_bf.entropy:", x_bf.compute_entropy())
-        print("x_bf unnormalized entropy:", x_bf.entropy_wrt_output)
-        print(
-            "expected entropy:",
-            (
-                (
-                    4.0 * (-(9.99876605e-01 - 1)) * np.log(-(9.99876605e-01 - 1))
-                    + (9.99876605e-01 - 1) * (-4.0 * np.log(4.0))
-                )
-                + (1.0 * -(9.99876605e-01 * np.log(9.99876605e-01)) + 9.99876605e-01 * (1.0 * np.log(1.0)))
-            )
-            / (4.0 * (9.99876605e-01 - 1) + 1.0 * 9.99876605e-01)
-            + (np.log(4.0 * (9.99876605e-01 - 1) + 1.0 * 9.99876605e-01)),
-        )
-        # print(loss.construct_graph())
-        # loss.visualize()
 
 
 class BruteForceTestCase(ut.TestCase):
