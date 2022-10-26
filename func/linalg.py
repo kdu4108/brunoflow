@@ -251,9 +251,9 @@ def matmul_backward(out_val, out_grad, A, B):
 
         return (
             np.matmul(out_entropy, __np_matrix_transpose(B_factor))
-            + np.matmul(out_abs_val_grad, __np_matrix_transpose(np.multiply(-B_factor, np.log(B_factor)))),
+            + np.matmul(out_abs_val_grad, __np_matrix_transpose(-B_factor * np.log(B_factor))),
             np.matmul(__np_matrix_transpose(A_factor), out_entropy)
-            + np.matmul(__np_matrix_transpose(np.multiply(-A_factor, np.log(A_factor))), out_abs_val_grad),
+            + np.matmul(__np_matrix_transpose(-A_factor * np.log(A_factor)), out_abs_val_grad),
         )
 
     elif isinstance(out_grad, dict):
