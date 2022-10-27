@@ -19,6 +19,21 @@ class LinalgTestCase(ut.TestCase):
         self.assertTrue(np.array_equal(x_bf.compute_entropy(), [[0]]))
         self.assertTrue(np.array_equal(y_bf.compute_entropy(), [[0]]))
 
+    def test_matmul_1x1_abs_val_grad_and_entropy_when_input_has_val_0_isnan(self):
+        # This isn't actually something we want, but unclear what the right behavior is.
+        x_bf = bf.Node(np.array([[0]]))
+        y_bf = bf.Node(np.array([[-9]]))
+        out = x_bf @ y_bf
+        out.backprop()
+        self.assertTrue(np.array_equal(x_bf.grad, [[-9]]))
+        self.assertTrue(np.array_equal(y_bf.grad, [[0]]))
+        self.assertTrue(np.array_equal(x_bf.abs_val_grad, [[9]]))
+        self.assertTrue(np.array_equal(y_bf.abs_val_grad, [[0]]))
+        print(x_bf.compute_entropy())
+        print(y_bf.compute_entropy())
+        self.assertTrue(np.array_equal(x_bf.compute_entropy(), [[0]]))
+        self.assertTrue(np.isnan(y_bf.compute_entropy()))
+
     def test_matmul_1x2_abs_val_grad_and_entropy(self):
         x_bf = bf.Node(np.array([[1, 2]]))
         y_bf = bf.Node(np.array([[3], [-9]]))

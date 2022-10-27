@@ -99,7 +99,19 @@ def leakyrelu(x, neg_slope=0.01):
 
     PyTorch equivalent: torch.nn.functional.leaky_relu
     """
-    return relu(x) + math.minimum(x, 0) * neg_slope
+    return _leakyrelu(x, neg_slope)
+    # return relu(x) + math.minimum(x, 0) * neg_slope
+
+
+def leakyrelu_backward(out_val, out_grad, x, neg_slope=0.01):
+    return np.where(out_val > 0, 1, neg_slope), None
+
+
+_leakyrelu = make_function(
+    lambda x, neg_slope: np.maximum(x, 0) + np.minimum(x, 0) * neg_slope,
+    pointwise_backward(leakyrelu_backward),
+    construct_single_variable_fct_name("leakyrelu", additional_arg_names=("neg_slope",)),
+)
 
 
 def softmax(x, axis):

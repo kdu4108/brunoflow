@@ -1,6 +1,6 @@
 from .linear import Linear
 from .network import Network
-from brunoflow.func.activations import relu
+from brunoflow.func.activations import leakyrelu
 
 
 class MLP(Network):
@@ -10,6 +10,6 @@ class MLP(Network):
 
     def forward(self, x):
         out = self.ff1(x)
-        out = relu(out)
+        out = leakyrelu(out)
         out = self.ff2(out)
         return out

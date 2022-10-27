@@ -193,14 +193,17 @@ class Node:
                         * out_grad_and_entropy_dict["out_entropy"]
                         + (-np.abs(l_adj) * np.log(np.abs(l_adj)) * out_grad_and_entropy_dict["out_abs_val_grad"])
                     ),
-                )  # TODO: this is broken for any functions that don't use pointwise_backward :(. Fix either in the hacky way used for abs_val_grad or make something more sustainable!
+                )  # TODO: this is broken for the inv function, fix that.
+                # TODO: Fix handling RELU/0s for computing entropy (specifically the thing with logs).
+                # So, any path where RELU is used, the ladj will become 0,
+                # and then we get sad because the np.log(0) will blow up :/.
 
-                # print(self.max_grad_of_output_wrt_node[0])
                 assert (
                     len(input_vals)
                     == len(adjoints)
                     == len(adjoints_max_grad)
                     == len(adjoints_max_neg_grad)
+                    == len(adjoints_abs_val_grad)
                     == len(adjoints_entropy)
                 )
                 # Accumulate these adjoints into the gradients for this Node's inputs
