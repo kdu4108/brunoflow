@@ -371,8 +371,6 @@ class AutodiffEntropyTestCase(ut.TestCase):
         print("x_bf.compute_entropy():", x_bf.compute_entropy())
         print("x_bf grad:", x_bf.grad)
 
-        print(x_bf.compute_entropy())
-        print((-2 * 3 * np.log(3) - 3 * np.log(3)) / (2 * 3 + 3) + np.log(2 * 3 + 3))
         self.assertTrue(
             np.array_equal(
                 x_bf.compute_entropy(),

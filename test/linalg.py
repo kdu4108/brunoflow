@@ -29,8 +29,6 @@ class LinalgTestCase(ut.TestCase):
         self.assertTrue(np.array_equal(y_bf.grad, [[0]]))
         self.assertTrue(np.array_equal(x_bf.abs_val_grad, [[9]]))
         self.assertTrue(np.array_equal(y_bf.abs_val_grad, [[0]]))
-        print(x_bf.compute_entropy())
-        print(y_bf.compute_entropy())
         self.assertTrue(np.array_equal(x_bf.compute_entropy(), [[0]]))
         self.assertTrue(np.isnan(y_bf.compute_entropy()))
 
