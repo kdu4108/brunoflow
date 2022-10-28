@@ -5,7 +5,7 @@ import numpy as np
 import numpy.typing as npt
 from typing import Any, List, Tuple, Union
 
-# from brunoflow.ad import name
+import brunoflow as bf
 
 
 class Node:
@@ -92,7 +92,7 @@ class Node:
                 if isinstance(inp, Node):
                     inp.__compute_num_uses()
 
-    def backprop(self, verbose=False):
+    def backprop(self, values_to_compute=("grad", "max_grad", "abs_val_grad", "entropy"), verbose=False):
         """
         Initiate a backward pass starting from this Node.
         Computes gradients from every Node reachable from this Node, back to the leaves.
@@ -128,15 +128,197 @@ class Node:
             )
 
         self.__compute_num_uses()
-        self.__backprop(verbose=verbose)
+        self.__backprop(values_to_compute=values_to_compute, verbose=verbose)
 
-    def __backprop(self, verbose=False):
+    def _compute_and_accumulate_grads_for_inputs(self, input_vals, backward_func, verbose=False):
+        # The 'adjoint' is the partial derivative of the final node in the graph
+        #   (typically the loss) w.r.t. the value at this Node.
+        adjoints = backward_func(self.val, self.grad, *input_vals)
+
+        assert len(input_vals) == len(adjoints)
+        # Accumulate these adjoints into the gradients for this Node's inputs
+        for i in range(len(adjoints)):
+            adj = adjoints[i]
+
+            if isinstance(self.inputs[i], Node):
+                assert (
+                    self.inputs[i].grad.shape
+                    == self.inputs[i].max_grad_of_output_wrt_node[0].shape
+                    == self.inputs[i].max_neg_grad_of_output_wrt_node[0].shape
+                    == self.inputs[i].entropy_wrt_output.shape
+                    == self.inputs[i].abs_val_grad.shape
+                )
+                # An adjoint may need to be 'reshaped' before it can be accumulated if the forward operation used broadcasting.
+                adjoint_gradient = reshape_adjoint(adj, self.inputs[i].grad.shape)
+
+                # ACCUMULATE GRADIENT BY SUMMING
+                prev_grad = np.copy(self.inputs[i].grad)
+                self.inputs[i].grad += adjoint_gradient
+                if verbose:
+                    print(
+                        f"    {Style.RESET_ALL}Updating grad of node {self.inputs[i].name}:\n     from {prev_grad} \n       to {self.inputs[i].grad}."
+                    )
+                del prev_grad
+
+    def _compute_and_accumulate_max_pos_and_neg_grads_for_inputs(self, input_vals, backward_func, verbose=False):
+        assert (self.max_grad_of_output_wrt_node[0] >= self.max_neg_grad_of_output_wrt_node[0]).all()
+
+        # Multiply the max pos grad of self w.r.t. output by the local derivative for each input val
+        adjoints_max_grad = backward_func(self.val, self.max_grad_of_output_wrt_node[0], *input_vals)
+
+        # Multiply the max neg grad of self w.r.t. output by the local derivative for each input val
+        adjoints_max_neg_grad = backward_func(self.val, self.max_neg_grad_of_output_wrt_node[0], *input_vals)
+
+        assert len(input_vals) == len(adjoints_max_grad) == len(adjoints_max_neg_grad)
+        # Accumulate these adjoints into the gradients for this Node's inputs
+        for i in range(len(adjoints_max_grad)):
+            adj_max_grad = adjoints_max_grad[i]
+            adj_max_neg_grad = adjoints_max_neg_grad[i]
+
+            if isinstance(self.inputs[i], Node):
+                assert (
+                    self.inputs[i].grad.shape
+                    == self.inputs[i].max_grad_of_output_wrt_node[0].shape
+                    == self.inputs[i].max_neg_grad_of_output_wrt_node[0].shape
+                    == self.inputs[i].entropy_wrt_output.shape
+                    == self.inputs[i].abs_val_grad.shape
+                )
+                # An adjoint may need to be 'reshaped' before it can be accumulated if the forward operation used broadcasting.
+                adj_max_grad = reshape_adjoint(adj_max_grad, self.inputs[i].grad.shape)
+                adj_max_neg_grad = reshape_adjoint(adj_max_neg_grad, self.inputs[i].grad.shape)
+
+                # If the max pos grad is less than the max neg grad, that means there was some sign flipping, and we should reverse which is most positive and most negative. Use np.maximum and np.minimum to do this element-wise.
+                adj_max_grad, adj_max_neg_grad = np.maximum(adj_max_grad, adj_max_neg_grad), np.minimum(
+                    adj_max_grad, adj_max_neg_grad
+                )
+
+                # ACCUMULATE MAX POS GRAD BY USING THE MAX OPERATOR
+                # Replace the current (max grad value, parent) of the ith input node with (max grad value of self, self) for all elements in the ith input node that have higher max grad values in self.
+                inds_to_replace_max_grad = adj_max_grad > self.inputs[i].max_grad_of_output_wrt_node[0]
+                prev_vals, prev_parents = np.copy(self.inputs[i].max_grad_of_output_wrt_node[0]), np.copy(
+                    self.inputs[i].max_grad_of_output_wrt_node[1]
+                )
+                self.inputs[i].max_grad_of_output_wrt_node[0][inds_to_replace_max_grad] = adj_max_grad[
+                    inds_to_replace_max_grad
+                ]
+                self.inputs[i].max_grad_of_output_wrt_node[1][inds_to_replace_max_grad] = self
+                if verbose and not np.array_equal(
+                    (prev_vals, prev_parents), self.inputs[i].max_grad_of_output_wrt_node
+                ):
+                    print(
+                        f"    Replacing max_grad of node {self.inputs[i].name}:\n     from {(prev_vals, prev_parents)} \n       to {self.inputs[i].max_grad_of_output_wrt_node}."
+                    )
+                del prev_vals, prev_parents
+
+                # ACCUMULATE MAX NEG GRAD BY USING THE MIN OPERATOR
+                # Replace the current (max neg grad value, parent) of the ith input node with (max neg grad value of self, self) for all elements in the ith input node that have more negative max neg grad values in self.
+                inds_to_replace_max_neg_grad = adj_max_neg_grad < self.inputs[i].max_neg_grad_of_output_wrt_node[0]
+                prev_vals, prev_parents = np.copy(self.inputs[i].max_neg_grad_of_output_wrt_node[0]), np.copy(
+                    self.inputs[i].max_neg_grad_of_output_wrt_node[1]
+                )
+                self.inputs[i].max_neg_grad_of_output_wrt_node[0][inds_to_replace_max_neg_grad] = adj_max_neg_grad[
+                    inds_to_replace_max_neg_grad
+                ]
+                self.inputs[i].max_neg_grad_of_output_wrt_node[1][inds_to_replace_max_neg_grad] = self
+                if verbose and not np.array_equal(
+                    (prev_vals, prev_parents), self.inputs[i].max_neg_grad_of_output_wrt_node
+                ):
+                    print(
+                        f"    Replacing max_neg_grad of node {self.inputs[i].name}:\n     from {(prev_vals, prev_parents)} \n       to {self.inputs[i].max_neg_grad_of_output_wrt_node}."
+                    )
+                del prev_vals, prev_parents
+
+    def _compute_and_accumulate_abs_val_grads_for_inputs(self, input_vals, backward_func, verbose=False):
+        # Required for running the entropy semiring properly, compute the abs value of the gradient
+        adjoints_abs_val_grad = backward_func(
+            self.val,
+            dict(out_abs_val_grad=self.abs_val_grad),
+            *input_vals,
+            product_fn=(lambda l_adj, out_abs_val_grad_dict: np.abs(l_adj) * out_abs_val_grad_dict["out_abs_val_grad"]),
+        )
+
+        assert len(input_vals) == len(adjoints_abs_val_grad)
+        # Accumulate these adjoints into the gradients for this Node's inputs
+        for i in range(len(adjoints_abs_val_grad)):
+            adj_abs_val_grad = adjoints_abs_val_grad[i]
+            if isinstance(self.inputs[i], Node):
+                assert (
+                    self.inputs[i].grad.shape
+                    == self.inputs[i].max_grad_of_output_wrt_node[0].shape
+                    == self.inputs[i].max_neg_grad_of_output_wrt_node[0].shape
+                    == self.inputs[i].entropy_wrt_output.shape
+                    == self.inputs[i].abs_val_grad.shape
+                )
+                assert (
+                    adj_abs_val_grad >= 0
+                ).all(), f"adj_abs_val_grad for output node w.r.t. input node {self.inputs[i]} via node {self} is {adj_abs_val_grad}. This number must be positive instead, so probably the backward func from {self} to {self.inputs[i]} is funky. Check the always-positive invariant holds!"
+
+                # An adjoint may need to be 'reshaped' before it can be accumulated if the forward operation used broadcasting.
+                adj_abs_val_grad = reshape_adjoint(adj_abs_val_grad, self.inputs[i].grad.shape)
+
+                # ACCUMULATE ABS_VAL_GRAD BY USING THE SUM OPERATOR
+                prev_abs_val_grad = np.copy(self.inputs[i].abs_val_grad)
+                self.inputs[i].abs_val_grad += adj_abs_val_grad
+                if verbose:
+                    print(
+                        f"    {Style.RESET_ALL}Updating abs_val_grad of node {self.inputs[i].name}:\n     from {prev_abs_val_grad} \n       to {self.inputs[i].abs_val_grad}."
+                    )
+                del prev_abs_val_grad
+
+    def _compute_and_accumulate_entropy_for_inputs(self, input_vals, backward_func, verbose=False):
+        # Semi-ring product (out_grad, -out_entropy) and (adj_grad, - adj_grad * log(adj_grad)) to get adjoint entropy (where adj_grad is the local derivative of self wrt each adjoint input)
+        # print("backward_func:", backward_func.__name__)
+        adjoints_entropy = backward_func(
+            self.val,
+            dict(out_abs_val_grad=self.abs_val_grad, out_entropy=self.entropy_wrt_output),
+            *input_vals,
+            product_fn=(
+                lambda l_adj, out_grad_and_entropy_dict: np.abs(l_adj) * out_grad_and_entropy_dict["out_entropy"]
+                + (-np.abs(l_adj) * np.log(np.abs(l_adj)) * out_grad_and_entropy_dict["out_abs_val_grad"])
+            ),
+        )  # TODO: this is broken for the inv function, fix that.
+        # TODO: Fix handling RELU/0s for computing entropy (specifically the thing with logs).
+        # So, any path where RELU is used, the ladj will become 0,
+        # and then we get sad because the np.log(0) will blow up :/.
+
+        assert len(input_vals) == len(adjoints_entropy)
+        # Accumulate these adjoints into the gradients for this Node's inputs
+        for i in range(len(adjoints_entropy)):
+            adj_entropy = adjoints_entropy[i]
+
+            if isinstance(self.inputs[i], Node):
+                assert (
+                    self.inputs[i].grad.shape
+                    == self.inputs[i].max_grad_of_output_wrt_node[0].shape
+                    == self.inputs[i].max_neg_grad_of_output_wrt_node[0].shape
+                    == self.inputs[i].entropy_wrt_output.shape
+                    == self.inputs[i].abs_val_grad.shape
+                )
+
+                # An adjoint may need to be 'reshaped' before it can be accumulated if the forward operation used broadcasting.
+                adj_entropy = reshape_adjoint(adj_entropy, self.inputs[i].grad.shape)
+
+                # ACCUMULATE ENTROPY BY USING THE SUM OPERATOR
+                prev_entropy = np.copy(self.inputs[i].entropy_wrt_output)
+                self.inputs[i].entropy_wrt_output += adj_entropy
+                if verbose:
+                    print(
+                        f"    {Style.RESET_ALL}Updating unnormalized entropy of node {self.inputs[i].name}:\n     from {prev_entropy} \n       to {self.inputs[i].entropy_wrt_output}."
+                    )
+                    print(
+                        f"    {Style.RESET_ALL}Updating actual entropy of node {self.inputs[i].name}:\n     to {self.inputs[i].compute_entropy()}."
+                    )
+                del prev_entropy
+
+    def __backprop(self, values_to_compute=("grad", "max_grad", "abs_val_grad", "entropy"), verbose=False):
         """
         Recursive helper function for self.backprop()
         Assumes that self.__compute_num_uses() has been called in advance
         """
-        assert (self.max_grad_of_output_wrt_node[0] >= self.max_neg_grad_of_output_wrt_node[0]).all()
         assert (self.abs_val_grad >= 0).all()
+        assert ("abs_val_grad" in values_to_compute and "entropy" in values_to_compute) or (
+            "abs_val_grad" not in values_to_compute and "entropy" not in values_to_compute
+        )
 
         if verbose:
             print(
@@ -162,154 +344,27 @@ class Node:
             # The backward_func is the derivative of self with respect to its inputs
             if backward_func:
                 input_vals = [inp.val if isinstance(inp, Node) else inp for inp in self.inputs]
-                # The 'adjoint' is the partial derivative of the final node in the graph
-                #   (typically the loss) w.r.t. the value at this Node.
-                adjoints = backward_func(self.val, self.grad, *input_vals)
-
-                # Multiply the max pos grad of self w.r.t. output by the local derivative for each input val
-                adjoints_max_grad = backward_func(self.val, self.max_grad_of_output_wrt_node[0], *input_vals)
-
-                # Multiply the max neg grad of self w.r.t. output by the local derivative for each input val
-                adjoints_max_neg_grad = backward_func(self.val, self.max_neg_grad_of_output_wrt_node[0], *input_vals)
-
-                # Required for running the entropy semiring properly, compute the abs value of the gradient
-                adjoints_abs_val_grad = backward_func(
-                    self.val,
-                    dict(out_abs_val_grad=self.abs_val_grad),
-                    *input_vals,
-                    product_fn=(
-                        lambda l_adj, out_abs_val_grad_dict: np.abs(l_adj) * out_abs_val_grad_dict["out_abs_val_grad"]
-                    ),
-                )
-
-                # Semi-ring product (out_grad, -out_entropy) and (adj_grad, - adj_grad * log(adj_grad)) to get adjoint entropy (where adj_grad is the local derivative of self wrt each adjoint input)
-                # print("backward_func:", backward_func.__name__)
-                adjoints_entropy = backward_func(
-                    self.val,
-                    dict(out_abs_val_grad=self.abs_val_grad, out_entropy=self.entropy_wrt_output),
-                    *input_vals,
-                    product_fn=(
-                        lambda l_adj, out_grad_and_entropy_dict: np.abs(l_adj)
-                        * out_grad_and_entropy_dict["out_entropy"]
-                        + (-np.abs(l_adj) * np.log(np.abs(l_adj)) * out_grad_and_entropy_dict["out_abs_val_grad"])
-                    ),
-                )  # TODO: this is broken for the inv function, fix that.
-                # TODO: Fix handling RELU/0s for computing entropy (specifically the thing with logs).
-                # So, any path where RELU is used, the ladj will become 0,
-                # and then we get sad because the np.log(0) will blow up :/.
-
-                assert (
-                    len(input_vals)
-                    == len(adjoints)
-                    == len(adjoints_max_grad)
-                    == len(adjoints_max_neg_grad)
-                    == len(adjoints_abs_val_grad)
-                    == len(adjoints_entropy)
-                )
-                # Accumulate these adjoints into the gradients for this Node's inputs
-                for i in range(len(adjoints)):
-                    adj = adjoints[i]
-                    adj_max_grad = adjoints_max_grad[i]
-                    adj_max_neg_grad = adjoints_max_neg_grad[i]
-                    adj_entropy = adjoints_entropy[i]
-                    adj_abs_val_grad = adjoints_abs_val_grad[i]
-
-                    if isinstance(self.inputs[i], Node):
-                        assert (
-                            self.inputs[i].grad.shape
-                            == self.inputs[i].max_grad_of_output_wrt_node[0].shape
-                            == self.inputs[i].max_neg_grad_of_output_wrt_node[0].shape
-                            == self.inputs[i].entropy_wrt_output.shape
-                            == self.inputs[i].abs_val_grad.shape
-                        )
-                        assert (
-                            adj_abs_val_grad >= 0
-                        ).all(), f"adj_abs_val_grad for output node w.r.t. input node {self.inputs[i]} via node {self} is {adj_abs_val_grad}. This number must be positive instead, so probably the backward func from {self} to {self.inputs[i]} is funky. Check the always-positive invariant holds!"
-
-                        # An adjoint may need to be 'reshaped' before it can be accumulated if the forward operation used broadcasting.
-                        adjoint_gradient = reshape_adjoint(adj, self.inputs[i].grad.shape)
-                        adj_max_grad = reshape_adjoint(adj_max_grad, self.inputs[i].grad.shape)
-                        adj_max_neg_grad = reshape_adjoint(adj_max_neg_grad, self.inputs[i].grad.shape)
-                        adj_entropy = reshape_adjoint(adj_entropy, self.inputs[i].grad.shape)
-                        adj_abs_val_grad = reshape_adjoint(adj_abs_val_grad, self.inputs[i].grad.shape)
-
-                        # ACCUMULATE GRADIENT BY SUMMING
-                        prev_grad = np.copy(self.inputs[i].grad)
-                        self.inputs[i].grad += adjoint_gradient
-                        if verbose:
-                            print(
-                                f"    {Style.RESET_ALL}Updating grad of node {self.inputs[i].name}:\n     from {prev_grad} \n       to {self.inputs[i].grad}."
-                            )
-                        del prev_grad
-
-                        # If the max pos grad is less than the max neg grad, that means there was some sign flipping, and we should reverse which is most positive and most negative. Use np.maximum and np.minimum to do this element-wise.
-                        adj_max_grad, adj_max_neg_grad = np.maximum(adj_max_grad, adj_max_neg_grad), np.minimum(
-                            adj_max_grad, adj_max_neg_grad
-                        )
-
-                        # ACCUMULATE MAX POS GRAD BY USING THE MAX OPERATOR
-                        # Replace the current (max grad value, parent) of the ith input node with (max grad value of self, self) for all elements in the ith input node that have higher max grad values in self.
-                        inds_to_replace_max_grad = adj_max_grad > self.inputs[i].max_grad_of_output_wrt_node[0]
-                        prev_vals, prev_parents = np.copy(self.inputs[i].max_grad_of_output_wrt_node[0]), np.copy(
-                            self.inputs[i].max_grad_of_output_wrt_node[1]
-                        )
-                        self.inputs[i].max_grad_of_output_wrt_node[0][inds_to_replace_max_grad] = adj_max_grad[
-                            inds_to_replace_max_grad
-                        ]
-                        self.inputs[i].max_grad_of_output_wrt_node[1][inds_to_replace_max_grad] = self
-                        if verbose and not np.array_equal(
-                            (prev_vals, prev_parents), self.inputs[i].max_grad_of_output_wrt_node
-                        ):
-                            print(
-                                f"    Replacing max_grad of node {self.inputs[i].name}:\n     from {(prev_vals, prev_parents)} \n       to {self.inputs[i].max_grad_of_output_wrt_node}."
-                            )
-                        del prev_vals, prev_parents
-
-                        # ACCUMULATE MAX NEG GRAD BY USING THE MIN OPERATOR
-                        # Replace the current (max neg grad value, parent) of the ith input node with (max neg grad value of self, self) for all elements in the ith input node that have more negative max neg grad values in self.
-                        inds_to_replace_max_neg_grad = (
-                            adj_max_neg_grad < self.inputs[i].max_neg_grad_of_output_wrt_node[0]
-                        )
-                        prev_vals, prev_parents = np.copy(self.inputs[i].max_neg_grad_of_output_wrt_node[0]), np.copy(
-                            self.inputs[i].max_neg_grad_of_output_wrt_node[1]
-                        )
-                        self.inputs[i].max_neg_grad_of_output_wrt_node[0][
-                            inds_to_replace_max_neg_grad
-                        ] = adj_max_neg_grad[inds_to_replace_max_neg_grad]
-                        self.inputs[i].max_neg_grad_of_output_wrt_node[1][inds_to_replace_max_neg_grad] = self
-                        if verbose and not np.array_equal(
-                            (prev_vals, prev_parents), self.inputs[i].max_neg_grad_of_output_wrt_node
-                        ):
-                            print(
-                                f"    Replacing max_neg_grad of node {self.inputs[i].name}:\n     from {(prev_vals, prev_parents)} \n       to {self.inputs[i].max_neg_grad_of_output_wrt_node}."
-                            )
-                        del prev_vals, prev_parents
-
-                        prev_abs_val_grad = np.copy(self.inputs[i].abs_val_grad)
-                        self.inputs[i].abs_val_grad += adj_abs_val_grad
-                        if verbose:
-                            print(
-                                f"    {Style.RESET_ALL}Updating abs_val_grad of node {self.inputs[i].name}:\n     from {prev_abs_val_grad} \n       to {self.inputs[i].abs_val_grad}."
-                            )
-                        del prev_abs_val_grad
-
-                        # ACCUMULATE ENTROPY BY USING THE SUM OPERATOR
-                        prev_entropy = np.copy(self.inputs[i].entropy_wrt_output)
-                        # print("adj_entropy:", adj_entropy)
-                        self.inputs[i].entropy_wrt_output += adj_entropy
-                        if verbose:
-                            print(
-                                f"    {Style.RESET_ALL}Updating unnormalized entropy of node {self.inputs[i].name}:\n     from {prev_entropy} \n       to {self.inputs[i].entropy_wrt_output}."
-                            )
-                            print(
-                                f"    {Style.RESET_ALL}Updating actual entropy of node {self.inputs[i].name}:\n     to {self.inputs[i].compute_entropy()}."
-                            )
-                        del prev_entropy
+                if "grad" in values_to_compute:
+                    self._compute_and_accumulate_grads_for_inputs(
+                        input_vals=input_vals, backward_func=backward_func, verbose=verbose
+                    )
+                if "max_grad" in values_to_compute:
+                    self._compute_and_accumulate_max_pos_and_neg_grads_for_inputs(
+                        input_vals=input_vals, backward_func=backward_func, verbose=verbose
+                    )
+                if "abs_val_grad" in values_to_compute:
+                    self._compute_and_accumulate_abs_val_grads_for_inputs(
+                        input_vals=input_vals, backward_func=backward_func, verbose=verbose
+                    )
+                if "entropy" in values_to_compute:
+                    self._compute_and_accumulate_entropy_for_inputs(
+                        input_vals=input_vals, backward_func=backward_func, verbose=verbose
+                    )
 
             # Continue recursively backpropagating
             for inp in self.inputs:
                 if isinstance(inp, Node):
-                    inp.__backprop(verbose=verbose)
+                    inp.__backprop(values_to_compute=values_to_compute, verbose=verbose)
 
     def zero_gradients(self):
         """
@@ -332,14 +387,29 @@ class Node:
         if self.__num_uses == 0:
             if isinstance(self.grad, np.ndarray):
                 self.grad.fill(0.0)
+                # Careful - ndarray.fill() when type(ndarray) is int results in this int overflow thing instead of inf.
+                self.max_grad_of_output_wrt_node = (
+                    np.full_like(self.max_grad_of_output_wrt_node[0], fill_value=-np.inf, dtype=np.float64),
+                    np.empty_like(self.max_grad_of_output_wrt_node[1], dtype=type(None)),
+                )
+                self.max_neg_grad_of_output_wrt_node = (
+                    np.full_like(self.max_neg_grad_of_output_wrt_node[0], fill_value=np.inf, dtype=np.float64),
+                    np.empty_like(self.max_neg_grad_of_output_wrt_node[1], dtype=type(None)),
+                )
+                self.entropy_wrt_output.fill(0.0)
+                self.abs_val_grad.fill(0.0)
             else:
                 self.grad = 0.0
+                self.max_grad_of_output_wrt_node = (0.0, None)
+                self.max_neg_grad_of_output_wrt_node = (0.0, None)
+                self.entropy_wrt_output = 0.0
+                self.abs_val_grad = 0.0
             for inp in self.inputs:
                 if isinstance(inp, Node):
                     inp.__zero_gradients()
 
     def compute_entropy(self):
-        return self.entropy_wrt_output / self.abs_val_grad + np.log(self.abs_val_grad)
+        return Node(self.entropy_wrt_output) / Node(self.abs_val_grad) + bf.func.math.log(self.abs_val_grad)
 
     def construct_graph(self):
         # TODO: this simply doesn't work so if I want an actual graph visualizer I should fix this
