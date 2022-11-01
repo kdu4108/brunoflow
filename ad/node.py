@@ -6,6 +6,7 @@ import numpy.typing as npt
 from typing import Any, List, Tuple, Union
 
 import brunoflow as bf
+from .utils import check_top_k_invariant, insert_into_list
 
 
 class Node:
@@ -53,6 +54,25 @@ class Node:
             np.full_like(val, fill_value=np.inf, dtype=np.float64),
             np.empty_like(val, dtype=type(None)),
         )
+        self.k = 10
+        self.max_k_grads_of_output_wrt_node: Tuple[Union[np.ndarray, np.float64], Union[npt.NDArray[Node], Node]] = [
+            (
+                np.full_like(
+                    np.repeat(np.expand_dims(val, axis=-1), self.k, axis=-1), fill_value=-np.inf, dtype=np.float64
+                ),
+                np.empty_like(np.repeat(np.expand_dims(val, axis=-1), self.k, axis=-1), dtype=type(None)),
+            )
+        ]  # shape: shape of val * k in an extra dimension, e.g. if val.shape = (a, b) then this has shape (a, b, k)
+        self.max_k_neg_grads_of_output_wrt_node: Tuple[
+            Union[np.ndarray, np.float64], Union[npt.NDArray[Node], Node]
+        ] = [
+            (
+                np.full_like(
+                    np.repeat(np.expand_dims(val, axis=-1), self.k, axis=-1), fill_value=np.inf, dtype=np.float64
+                ),
+                np.empty_like(np.repeat(np.expand_dims(val, axis=-1), self.k, axis=-1), dtype=type(None)),
+            )
+        ]
         self.entropy_wrt_output: Union[np.ndarray, np.float64] = np.zeros_like(val, dtype=np.float64)
         self.abs_val_grad: Union[np.ndarray, np.float64] = np.zeros_like(val, dtype=np.float64)
         self.backward_func = backward_func
@@ -227,6 +247,97 @@ class Node:
                         f"    Replacing max_neg_grad of node {self.inputs[i].name}:\n     from {(prev_vals, prev_parents)} \n       to {self.inputs[i].max_neg_grad_of_output_wrt_node}."
                     )
                 del prev_vals, prev_parents
+
+    def _compute_and_accumulate_k_max_pos_and_neg_grads_for_inputs(
+        self, input_vals, backward_func, k=10, verbose=False
+    ):
+        check_top_k_invariant(self.max_k_grads_of_output_wrt_node, self.max_k_neg_grads_of_output_wrt_node)
+
+        # For each of the top-k-grad paths from self to output node, multiply the "max grad" of that path by the local derivative for each input val
+        adjoints_max_k_grad: List[List[np.ndarray]] = [
+            backward_func(self.val, kth_grad[0], *input_vals) for kth_grad in self.max_k_grads_of_output_wrt_node
+        ]  # shape = (<=k, len(input_vals))
+
+        # Multiply the max neg grad of self w.r.t. output by the local derivative for each input val
+        adjoints_max_k_neg_grad = [
+            backward_func(self.val, kth_neg_grad[0], *input_vals)
+            for kth_neg_grad in self.max_k_neg_grads_of_output_wrt_node
+        ]
+
+        for grad_index in range(len(adjoints_max_k_grad)):
+            # This is at most k loops
+            adjoints_max_grad = adjoints_max_k_grad[grad_index]
+            adjoints_max_neg_grad = adjoints_max_k_neg_grad[grad_index]
+
+            assert len(input_vals) == len(adjoints_max_grad[0]) == len(adjoints_max_neg_grad[0])
+            # Accumulate these adjoints into the gradients for each of this Node's inputs
+            for i in range(len(adjoints_max_grad)):
+                adj_max_grad = adjoints_max_grad[i]
+                adj_max_neg_grad = adjoints_max_neg_grad[i]
+
+                if isinstance(self.inputs[i], Node):
+                    assert (
+                        self.inputs[i].grad.shape
+                        == self.inputs[i].max_grad_of_output_wrt_node[0].shape
+                        == self.inputs[i].max_neg_grad_of_output_wrt_node[0].shape
+                        == self.inputs[i].entropy_wrt_output.shape
+                        == self.inputs[i].abs_val_grad.shape
+                    )
+                    # An adjoint may need to be 'reshaped' before it can be accumulated if the forward operation used broadcasting.
+                    adj_max_grad = reshape_adjoint(adj_max_grad, self.inputs[i].grad.shape)
+                    adj_max_neg_grad = reshape_adjoint(adj_max_neg_grad, self.inputs[i].grad.shape)
+
+                    # If the max pos grad is less than the max neg grad, that means there was some sign flipping, and we should reverse which is most positive and most negative. Use np.maximum and np.minimum to do this element-wise.
+                    adj_max_grad, adj_max_neg_grad = np.maximum(adj_max_grad, adj_max_neg_grad), np.minimum(
+                        adj_max_grad, adj_max_neg_grad
+                    )
+
+                    # ACCUMULATE MAX POS GRAD BY USING THE MAX OPERATOR
+                    # Replace the current (max grad value, parent) of the ith input node with (max grad value of self, self)
+                    # for all elements in the ith input node that have higher max grad values in self.
+                    existing_top_k_max_grads = self.inputs[i].max_k_grads_of_output_wrt_node[
+                        0
+                    ]  # shape (self.inputs[i].val x k)
+                    print(existing_top_k_max_grads)
+
+                    # append adj_max_grad in the kth dimension, so shape is now (self.inputs[i].val x k+1)
+                    # get the indices of the top k elements by np.argpartition(kth=-k)
+                    # Remove the lowest element of both the grads nparray and the parent node nparray using np.take
+                    # sort both the grads nparray and the parent node nparray
+
+                    inds_to_replace_max_grad = adj_max_grad > self.inputs[i].max_grad_of_output_wrt_node[0]
+                    prev_vals, prev_parents = np.copy(self.inputs[i].max_grad_of_output_wrt_node[0]), np.copy(
+                        self.inputs[i].max_grad_of_output_wrt_node[1]
+                    )
+                    self.inputs[i].max_grad_of_output_wrt_node[0][inds_to_replace_max_grad] = adj_max_grad[
+                        inds_to_replace_max_grad
+                    ]
+                    self.inputs[i].max_grad_of_output_wrt_node[1][inds_to_replace_max_grad] = self
+                    if verbose and not np.array_equal(
+                        (prev_vals, prev_parents), self.inputs[i].max_grad_of_output_wrt_node
+                    ):
+                        print(
+                            f"    Replacing max_grad of node {self.inputs[i].name}:\n     from {(prev_vals, prev_parents)} \n       to {self.inputs[i].max_grad_of_output_wrt_node}."
+                        )
+                    del prev_vals, prev_parents
+
+                    # ACCUMULATE MAX NEG GRAD BY USING THE MIN OPERATOR
+                    # Replace the current (max neg grad value, parent) of the ith input node with (max neg grad value of self, self) for all elements in the ith input node that have more negative max neg grad values in self.
+                    inds_to_replace_max_neg_grad = adj_max_neg_grad < self.inputs[i].max_neg_grad_of_output_wrt_node[0]
+                    prev_vals, prev_parents = np.copy(self.inputs[i].max_neg_grad_of_output_wrt_node[0]), np.copy(
+                        self.inputs[i].max_neg_grad_of_output_wrt_node[1]
+                    )
+                    self.inputs[i].max_neg_grad_of_output_wrt_node[0][inds_to_replace_max_neg_grad] = adj_max_neg_grad[
+                        inds_to_replace_max_neg_grad
+                    ]
+                    self.inputs[i].max_neg_grad_of_output_wrt_node[1][inds_to_replace_max_neg_grad] = self
+                    if verbose and not np.array_equal(
+                        (prev_vals, prev_parents), self.inputs[i].max_neg_grad_of_output_wrt_node
+                    ):
+                        print(
+                            f"    Replacing max_neg_grad of node {self.inputs[i].name}:\n     from {(prev_vals, prev_parents)} \n       to {self.inputs[i].max_neg_grad_of_output_wrt_node}."
+                        )
+                    del prev_vals, prev_parents
 
     def _compute_and_accumulate_abs_val_grads_for_inputs(self, input_vals, backward_func, verbose=False):
         # Required for running the entropy semiring properly, compute the abs value of the gradient
@@ -438,6 +549,10 @@ class Node:
 
     def visualize(self):
         self.graph.render(view=True)
+
+    # def slice(self, *args):
+    #     sliced_node = Node(val=self.val[*args])
+    #     return Node(self.grad)
 
 
 def reshape_adjoint(adj, shape):

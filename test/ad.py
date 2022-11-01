@@ -292,6 +292,54 @@ class AutodiffMaxGradTestCase(ut.TestCase):
         print("w grad:", linear_bf.W.grad)
 
 
+class AutodiffMaxKGradTestCase(ut.TestCase):
+    #######################################
+    # MAX K GRAD AND MAX K NEG GRAD TESTS #
+    #######################################
+    def test_vectorize(self):
+        X = bf.Parameter(np.array([1.0, -1, 2.0]), name="X")
+        A = X * 3
+        B = X * 2
+        C = X**2
+
+        output = A + B + C
+
+        output.backprop()
+        print(X.max_grad_of_output_wrt_node)
+        print(X.max_neg_grad_of_output_wrt_node)
+
+    def test_matmul(self):
+        X_bf = bf.Parameter(np.array([[1.0, 2.0, 3.0]]), name="X")  # shape = (1, 3)
+        W_bf = bf.Parameter(np.array([[4.0, 5.0], [6.0, 7.0], [8.0, 9.0]]), name="W")  # shape = (3, 2)
+
+        prod = X_bf @ W_bf
+        output = sum(prod)
+
+        output.backprop()
+
+        print(X_bf.max_grad_of_output_wrt_node)
+        print(X_bf.max_neg_grad_of_output_wrt_node)
+        print(W_bf.max_neg_grad_of_output_wrt_node)
+        print(W_bf.max_neg_grad_of_output_wrt_node)
+        # print(X_bf.max_grad_of_output_wrt_node)
+
+        # # Check the positive max grad of input x has expected value and parent node (where parent in this case means "closer in the graph to the output")
+        # self.assertEqual(x_bf.max_grad_of_output_wrt_node[0], 2.0)
+        # self.assertEqual(x_bf.max_grad_of_output_wrt_node[1].item().name, "(* x y)")
+
+        # # Check the negative max grad of input x has expected value and parent node (where parent in this case means "closer in the graph to the output")
+        # self.assertEqual(x_bf.max_neg_grad_of_output_wrt_node[0], 0.5)
+        # self.assertEqual(x_bf.max_neg_grad_of_output_wrt_node[1].item().name, "(/ x y)")
+
+        # # Check the positive max grad of inputly has expected value and parent node (where parent in this case means "closer in the graph to the output")
+        # self.assertEqual(y_bf.max_grad_of_output_wrt_node[0], 4.0)
+        # self.assertEqual(y_bf.max_grad_of_output_wrt_node[1].item().name, "(* x y)")
+
+        # # Check the negative max grad of inputly has expected value and parent node (where parent in this case means "closer in the graph to the output")
+        # self.assertEqual(y_bf.max_neg_grad_of_output_wrt_node[0], -1.0)
+        # self.assertEqual(y_bf.max_neg_grad_of_output_wrt_node[1].item().name, "(/ x y)")
+
+
 class AutodiffEntropyTestCase(ut.TestCase):
     #################
     # ENTROPY TESTS #
