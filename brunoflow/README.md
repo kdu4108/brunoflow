@@ -42,14 +42,14 @@ Brunoflow's codebase is organized to make these ideas directly evident:
 Brunoflow was designed and implemented for Brown CS 1470/2470 Deep Learning by Professor Daniel Ritchie with contributions from former Head TA Zachary Horvitz.
 Brunoflow is free to use for all educational, research, and other non-commercial purposes (please consult the LICENSE).
 If you use Brunoflow in your courses and/or research, please cite it as:
-  
+
     @misc{Brunoflow,
         title = {{Brunoflow: A Pedagogical Deep Learning Framework}},
         author = {{Daniel Ritchie}},
         howpublished = {\url{https://github.com/Brown-Deep-Learning/brunoflow}},
         year = {2020}
     }
-    
+
 ## Course Materials
 The course staff of CS 1470/2470 has created lecture slides and Google Colab notebooks which introduce students to automatic differentiation and Brunoflow and help develop their understanding of how these systems work via programming and debugging exercises.
 If you would like to use these materials in your own course(s), please send inquiries to <cs1470headtas@lists.brown.edu>.

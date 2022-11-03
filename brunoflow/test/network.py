@@ -2,14 +2,14 @@ import unittest as ut
 import brunoflow as bf
 import numpy as np
 
-class NetworkTestCase(ut.TestCase):
 
+class NetworkTestCase(ut.TestCase):
     def check(self, val, target):
         err_thresh = 0.05
         diff_norm = np.mean(np.abs(val - target))
         rel_diff_norm = diff_norm / np.mean(np.abs(target))
         self.assertLess(rel_diff_norm, err_thresh)
-        
+
     def test_linear(self):
         in_dim = 10
         out_dim = 4
