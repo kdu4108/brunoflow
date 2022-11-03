@@ -301,14 +301,14 @@ class AutodiffEntropyTestCase(ut.TestCase):
         output = x_bf * 2 + x_bf * 2
         output.backprop(verbose=True)
 
-        self.assertTrue(x_bf.compute_entropy() == np.log(2))
+        self.assertTrue(x_bf.compute_entropy().val == np.log(2))
 
     def test_entropy_when_input_has_0_val(self):
         x_bf = bf.Parameter(0, name="x")
         output = x_bf * 2 + x_bf * 2
         output.backprop(verbose=True)
 
-        self.assertTrue(x_bf.compute_entropy() == np.log(2))
+        self.assertTrue(x_bf.compute_entropy().val == np.log(2))
 
     def test_entropy_of_single_variable_in_two_paths_with_opposite_gradients(self):
         x_bf = bf.Parameter(3, name="x")
@@ -318,7 +318,7 @@ class AutodiffEntropyTestCase(ut.TestCase):
         print("x_bf.compute_entropy():", x_bf.compute_entropy())
         print("x_bf grad:", x_bf.grad)
 
-        self.assertTrue(x_bf.compute_entropy() == ((-4 * np.log(4) - 2 * np.log(2)) / 6 + np.log(6)))
+        self.assertTrue(x_bf.compute_entropy().val == ((-4 * np.log(4) - 2 * np.log(2)) / 6 + np.log(6)))
 
     def test_entropy_of_single_variable_in_two_paths_with_identical_but_opposite_gradients(self):
         x_bf = bf.Parameter(3, name="x")
@@ -328,7 +328,7 @@ class AutodiffEntropyTestCase(ut.TestCase):
         print("x_bf.compute_entropy():", x_bf.compute_entropy())
         print("x_bf grad:", x_bf.grad)
 
-        self.assertTrue(x_bf.compute_entropy() == np.log(2))
+        self.assertTrue(x_bf.compute_entropy().val == np.log(2))
 
     def test_entropy_of_vector_variable_in_two_paths_with_identical_but_opposite_gradients(self):
         x_bf = bf.Parameter(np.array([3.0, 5.0, 0.0]), name="x")
@@ -338,7 +338,7 @@ class AutodiffEntropyTestCase(ut.TestCase):
         print("x_bf.compute_entropy():", x_bf.compute_entropy())
         print("x_bf grad:", x_bf.grad)
 
-        self.assertTrue(np.array_equal(x_bf.compute_entropy(), np.array([np.log(2), np.log(2), np.log(2)])))
+        self.assertTrue(np.array_equal(x_bf.compute_entropy().val, np.array([np.log(2), np.log(2), np.log(2)])))
 
     def test_entropy_of_vector_variable_in_two_paths_with_input_dependent_gradients(self):
         # Tests 3 things - (1) this works vectorized, (2) this works when you pass in different elemnts in each vector, and (3) the negative gradient gets abs val'd and works too.
@@ -352,7 +352,7 @@ class AutodiffEntropyTestCase(ut.TestCase):
         print((-2 * 3 * np.log(2 * 3) - 3 * np.log(3)) / (2 * 3 + 3) + np.log(2 * 3 + 3))
         self.assertTrue(
             np.array_equal(
-                x_bf.compute_entropy(),
+                x_bf.compute_entropy().val,
                 np.array(
                     [
                         (-2 * 3 * np.log(2 * 3) - 3 * np.log(3)) / (2 * 3 + 3) + np.log(2 * 3 + 3),
@@ -373,7 +373,7 @@ class AutodiffEntropyTestCase(ut.TestCase):
 
         self.assertTrue(
             np.array_equal(
-                x_bf.compute_entropy(),
+                x_bf.compute_entropy().val,
                 np.array(
                     [
                         (-2 * 3 * np.log(3) - 3 * np.log(3)) / (2 * 3 + 3) + np.log(2 * 3 + 3),
@@ -447,7 +447,7 @@ class AutodiffEntropyTestCase(ut.TestCase):
 
         # This is slightly different now because the total (abs_val) gradient does change,
         # so even though the unnormalized entropy is the same, the actual entropy changes.
-        self.assertTrue(np.allclose(output_bf.compute_entropy(), [[1.53411441e00, 4.44089210e-16]]))
+        self.assertTrue(np.allclose(output_bf.compute_entropy().val, [[1.53411441e00, 4.44089210e-16]]))
 
     def test_entropy_linear(self):
         x_bf = bf.Parameter(np.array([[3.0]]), name="x")
@@ -460,7 +460,7 @@ class AutodiffEntropyTestCase(ut.TestCase):
         output.backprop(verbose=True)
 
         # There's two paths x can take to the end - one with weight 2, 1 with weight 1, so it's just the entropy of that distribution.
-        self.assertEqual(x_bf.compute_entropy(), [[ss.entropy([2 / 3, 1 / 3])]])
+        self.assertEqual(x_bf.compute_entropy().val, [[ss.entropy([2 / 3, 1 / 3])]])
 
     def test_entropy_linear_neg_weights(self):
         x_bf = bf.Parameter(np.array([[3.0]]), name="x")
@@ -473,7 +473,7 @@ class AutodiffEntropyTestCase(ut.TestCase):
         output.backprop(verbose=True)
 
         # There's two paths x can take to the end - one with weight 2, 1 with weight 1, so it's just the entropy of that distribution.
-        self.assertEqual(x_bf.compute_entropy(), [[ss.entropy([2 / 3, 1 / 3])]])
+        self.assertEqual(x_bf.compute_entropy().val, [[ss.entropy([2 / 3, 1 / 3])]])
 
     def test_entropy_linear_with_bias(self):
         x_bf = bf.Parameter(np.array([[3.0]]), name="x")
@@ -487,7 +487,7 @@ class AutodiffEntropyTestCase(ut.TestCase):
 
         # Even with bias, there's two paths x can take to the end -
         # and the decision point has one with weight 2, 1 with weight 1, so it's just the entropy of that distribution.
-        self.assertEqual(x_bf.compute_entropy(), [[ss.entropy([2 / 3, 1 / 3])]])
+        self.assertEqual(x_bf.compute_entropy().val, [[ss.entropy([2 / 3, 1 / 3])]])
 
 
 class BruteForceTestCase(ut.TestCase):
