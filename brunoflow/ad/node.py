@@ -314,7 +314,9 @@ class Node:
                     )
                 del prev_entropy
 
-    def __backprop(self, values_to_compute=("grad", "max_grad", "abs_val_grad", "entropy"), verbose=False):
+    def __backprop(
+        self, values_to_compute=("grad", "max_grad", "abs_val_grad", "entropy"), retain_graph=True, verbose=False
+    ):
         """
         Recursive helper function for self.backprop()
         Assumes that self.__compute_num_uses() has been called in advance
@@ -364,11 +366,34 @@ class Node:
                     self._compute_and_accumulate_entropy_for_inputs(
                         input_vals=input_vals, backward_func=backward_func, verbose=verbose
                     )
+                if not retain_graph:
+                    self.zero_self_gradients()
 
             # Continue recursively backpropagating
             for inp in self.inputs:
                 if isinstance(inp, Node):
                     inp.__backprop(values_to_compute=values_to_compute, verbose=verbose)
+
+    def zero_self_gradients(self):
+        if isinstance(self.grad, np.ndarray):
+            self.grad.fill(0.0)
+            # Careful - ndarray.fill() when type(ndarray) is int results in this int overflow thing instead of inf.
+            self.max_grad_of_output_wrt_node = (
+                np.full_like(self.max_grad_of_output_wrt_node[0], fill_value=-np.inf, dtype=np.float64),
+                np.empty_like(self.max_grad_of_output_wrt_node[1], dtype=type(None)),
+            )
+            self.max_neg_grad_of_output_wrt_node = (
+                np.full_like(self.max_neg_grad_of_output_wrt_node[0], fill_value=np.inf, dtype=np.float64),
+                np.empty_like(self.max_neg_grad_of_output_wrt_node[1], dtype=type(None)),
+            )
+            self.entropy_wrt_output.fill(0.0)
+            self.abs_val_grad.fill(0.0)
+        else:
+            self.grad = 0.0
+            self.max_grad_of_output_wrt_node = (0.0, None)
+            self.max_neg_grad_of_output_wrt_node = (0.0, None)
+            self.entropy_wrt_output = 0.0
+            self.abs_val_grad = 0.0
 
     def zero_gradients(self):
         """
