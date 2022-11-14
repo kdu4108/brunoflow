@@ -7,6 +7,7 @@ import unittest as ut
 from brunoflow.ad import name
 from brunoflow.ad.node import Node
 from brunoflow.func.utils import print_vals_for_all_children
+from brunoflow.opt import regularize
 from brunoflow.test.utils import get_all_paths_from_src_to_target_node, get_all_paths_to_node
 
 
@@ -489,6 +490,15 @@ class AutodiffEntropyTestCase(ut.TestCase):
         # and the decision point has one with weight 2, 1 with weight 1, so it's just the entropy of that distribution.
         self.assertEqual(x_bf.compute_entropy().val, [[ss.entropy([2 / 3, 1 / 3])]])
 
+    def test_entropy_no_nans(self):
+        """Test that any NaNs computed in the entropy_wrt_output because of 0log0 are set to 0."""
+        x_bf = bf.Parameter(np.array([-1, 0, 1]), name="x")
+        output = bf.relu(x_bf)
+        output.backprop(verbose=True)
+
+        # The 0th and 1st elements would otherwise be NaNs if computing entropy did not set 0log0 = 0.
+        assert np.array_equal(x_bf.entropy_wrt_output, np.array([0, 0, 0]))
+
 
 class BruteForceTestCase(ut.TestCase):
     def test_get_all_paths_base_case(self):
@@ -522,3 +532,47 @@ class BruteForceTestCase(ut.TestCase):
         # These are weird cases where y and z have the same value, so they're considered the same starting node, lol
         self.assertEqual(len(get_all_paths_from_src_to_target_node(output, y_bf)), 6)
         self.assertEqual(len(get_all_paths_from_src_to_target_node(output, z_bf)), 6)
+
+
+class RegularizationTestCase(ut.TestCase):
+    ########################
+    # REGULARIZATION TESTS #
+    ########################
+    def test_l1_regularization(self):
+        linear_bf = bf.net.Linear(1, 2)
+        linear_bf.set_weights(np.array([[4.0, 1.0]]))
+        linear_bf.set_bias(np.array([2.0, 0.0]))
+
+        regularized = regularize(linear_bf, l1_weight=1, l2_weight=0)
+
+        assert regularized.val == 7.0
+        regularized.backprop(verbose=True)
+
+        self.assertTrue(np.allclose(linear_bf.W.grad, np.array([[1.0, 1.0]])))
+        self.assertTrue(np.allclose(linear_bf.b.grad, np.array([[1.0, 1.0]])))
+
+    def test_l2_regularization(self):
+        linear_bf = bf.net.Linear(1, 2)
+        linear_bf.set_weights(np.array([[4.0, 1.0]]))
+        linear_bf.set_bias(np.array([2.0, 0.0]))
+
+        regularized = regularize(linear_bf, l1_weight=0, l2_weight=1)
+
+        assert regularized.val == 21.0
+        regularized.backprop(verbose=True, values_to_compute=["grad", "abs_val_grad", "entropy"])
+
+        self.assertTrue(np.allclose(linear_bf.W.grad, np.array([[8.0, 2.0]])))
+        self.assertTrue(np.allclose(linear_bf.b.grad, np.array([[4.0, 0.0]])))
+
+    def test_l2_half_weighted_regularization(self):
+        linear_bf = bf.net.Linear(1, 2)
+        linear_bf.set_weights(np.array([[4.0, 1.0]]))
+        linear_bf.set_bias(np.array([2.0, 0.0]))
+
+        regularized = regularize(linear_bf, l1_weight=0, l2_weight=0.5)
+
+        assert regularized.val == 10.5
+        regularized.backprop(verbose=True)
+
+        self.assertTrue(np.allclose(linear_bf.W.grad, np.array([[4.0, 1.0]])))
+        self.assertTrue(np.allclose(linear_bf.b.grad, np.array([[2.0, 0.0]])))

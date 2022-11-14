@@ -61,6 +61,9 @@ class Node:
         self.__num_uses = 0
         self.graph = graphviz.Digraph("computation_graph", filename="computation_graph.gv")
 
+    def set_name(self, new_name: str):
+        self.name = new_name
+
     @property
     def shape(self):
         return self.val.shape
@@ -274,12 +277,13 @@ class Node:
             *input_vals,
             product_fn=(
                 lambda l_adj, out_grad_and_entropy_dict: np.abs(l_adj) * out_grad_and_entropy_dict["out_entropy"]
-                + (-np.abs(l_adj) * np.log(np.abs(l_adj)) * out_grad_and_entropy_dict["out_abs_val_grad"])
+                + np.nan_to_num(
+                    -np.abs(l_adj) * np.log(np.abs(l_adj)) * out_grad_and_entropy_dict["out_abs_val_grad"],
+                    copy=False,
+                    nan=0.0,
+                )
             ),
         )  # TODO: this is broken for the inv function, fix that.
-        # TODO: Fix handling RELU/0s for computing entropy (specifically the thing with logs).
-        # So, any path where RELU is used, the ladj will become 0,
-        # and then we get sad because the np.log(0) will blow up :/.
 
         assert len(input_vals) == len(adjoints_entropy)
         # Accumulate these adjoints into the gradients for this Node's inputs

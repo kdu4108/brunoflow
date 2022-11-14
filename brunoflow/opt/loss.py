@@ -217,3 +217,23 @@ cross_entropy_loss_raw = make_function(
     backward=pointwise_backward(_cross_entropy_loss_backward),
     name_fct=lambda a, b: f"(cross_entropy_loss {ad.name(a)})",
 )
+
+
+def regularize(model, l1_weight=0, l2_weight=1):
+    regularization_term = 0
+    l1_penalty = 0
+    l2_penalty = 0
+
+    if l1_weight != 0:
+        for p in model.parameters:
+            l1_penalty += reduce_sum(abs(p))
+        l1_penalty.set_name("L1_penalty")
+        regularization_term += l1_penalty * l1_weight
+
+    if l2_weight != 0:
+        for p in model.parameters:
+            l2_penalty += reduce_sum(p**2)
+        l2_penalty.set_name("L2_penalty")
+        regularization_term += l2_penalty * l2_weight
+
+    return regularization_term
