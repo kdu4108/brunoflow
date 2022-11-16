@@ -1,5 +1,5 @@
 ## Using Brunoflow
-To use Brunoflow immediately, clone the repo and then run `pip install -e .`. Ideally, do this in a fresh conda environment! Since this is an editable install, you should be able to edit files directly and then those changes should automatically update when you use the library.
+To use Brunoflow immediately, clone the repo and then run `pip install -e .` in a Python3.9+ environment.. Ideally, do this in a fresh conda environment! Since this is an editable install, you should be able to edit files directly and then those changes should automatically update when you use the library.
 
 ### Example code
 ```
