@@ -95,7 +95,12 @@ class Node:
                 if isinstance(inp, Node):
                     inp.__compute_num_uses()
 
-    def backprop(self, values_to_compute=("grad", "max_grad", "abs_val_grad", "entropy"), verbose=False):
+    def backprop(
+        self,
+        values_to_compute=("grad", "max_grad", "abs_val_grad", "entropy"),
+        save_leaf_grads_only=False,
+        verbose=False,
+    ):
         """
         Initiate a backward pass starting from this Node.
         Computes gradients from every Node reachable from this Node, back to the leaves.
@@ -131,7 +136,7 @@ class Node:
             )
 
         self.__compute_num_uses()
-        self.__backprop(values_to_compute=values_to_compute, verbose=verbose)
+        self.__backprop(values_to_compute=values_to_compute, verbose=verbose, save_leaf_grads_only=save_leaf_grads_only)
 
     def _compute_and_accumulate_grads_for_inputs(self, input_vals, backward_func, verbose=False):
         # The 'adjoint' is the partial derivative of the final node in the graph
@@ -315,7 +320,10 @@ class Node:
                 del prev_entropy
 
     def __backprop(
-        self, values_to_compute=("grad", "max_grad", "abs_val_grad", "entropy"), retain_graph=True, verbose=False
+        self,
+        values_to_compute=("grad", "max_grad", "abs_val_grad", "entropy"),
+        save_leaf_grads_only=False,
+        verbose=False,
     ):
         """
         Recursive helper function for self.backprop()
@@ -366,13 +374,15 @@ class Node:
                     self._compute_and_accumulate_entropy_for_inputs(
                         input_vals=input_vals, backward_func=backward_func, verbose=verbose
                     )
-                if not retain_graph:
+                if save_leaf_grads_only and self.inputs:
                     self.zero_self_gradients()
 
             # Continue recursively backpropagating
             for inp in self.inputs:
                 if isinstance(inp, Node):
-                    inp.__backprop(values_to_compute=values_to_compute, verbose=verbose)
+                    inp.__backprop(
+                        values_to_compute=values_to_compute, verbose=verbose, save_leaf_grads_only=save_leaf_grads_only
+                    )
 
     def zero_self_gradients(self):
         if isinstance(self.grad, np.ndarray):
