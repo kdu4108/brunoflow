@@ -375,7 +375,8 @@ class Node:
                         input_vals=input_vals, backward_func=backward_func, verbose=verbose
                     )
                 if save_leaf_grads_only and self.inputs:
-                    self.zero_self_gradients()
+                    self.none_out_self_gradients()
+                    # self.zero_self_gradients()
 
             # Continue recursively backpropagating
             for inp in self.inputs:
@@ -404,6 +405,13 @@ class Node:
             self.max_neg_grad_of_output_wrt_node = (0.0, None)
             self.entropy_wrt_output = 0.0
             self.abs_val_grad = 0.0
+
+    def none_out_self_gradients(self):
+        self.grad = None
+        self.max_grad_of_output_wrt_node = (None, None)
+        self.max_neg_grad_of_output_wrt_node = (None, None)
+        self.entropy_wrt_output = None
+        self.abs_val_grad = None
 
     def zero_gradients(self):
         """
