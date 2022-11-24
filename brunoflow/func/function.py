@@ -4,7 +4,7 @@ This module contains the code for defining new autodiff functions.
 
 from collections.abc import Iterable
 import inspect
-import numpy as np
+from jax import numpy as jnp
 from .. import ad
 from operator import __mul__
 
@@ -44,7 +44,7 @@ def make_function(forward, backward=None, name_fct=None):
                 # print(f"WARNING: backward function named {backward.__name__} does not have an argument named {kwarg}. Deleting kwarg.")
                 del kwargs[kwarg]
         ret = backward(*args, **kwargs)
-        if not isinstance(ret, Iterable) or isinstance(ret, np.ndarray):
+        if not isinstance(ret, Iterable) or isinstance(ret, jnp.ndarray):
             ret = [ret]
         return ret
 
@@ -78,7 +78,7 @@ def pointwise_backward(pointwise_back_fn):
         # Invoke the pointwise backward function
         local_adjoints = pointwise_back_fn(out_val, *input_vals)
         # Make sure the returned adjoints are a list we can iterate over
-        if not isinstance(local_adjoints, Iterable) or isinstance(local_adjoints, np.ndarray):
+        if not isinstance(local_adjoints, Iterable) or isinstance(local_adjoints, jnp.ndarray):
             local_adjoints = [local_adjoints]
         # Multiply each returned adjoint by out_grad
         # if product_fn is not __mul__:
