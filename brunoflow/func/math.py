@@ -4,6 +4,7 @@ This module contains definitions for autodiff versions of functions in the 'math
 
 from colorama import Fore, Style
 import numpy as np
+from jax import numpy as jnp
 from .function import make_function, pointwise_backward
 from brunoflow.func.utils import construct_single_variable_fct_name, construct_double_variable_fct_name
 from ..ad import Node, name
@@ -18,7 +19,7 @@ sqrt = make_function(
 )
 
 exp = make_function(
-    lambda x: np.exp(x), pointwise_backward(lambda out, x: out), construct_single_variable_fct_name("exp")
+    lambda x: jnp.exp(x), pointwise_backward(lambda out, x: out), construct_single_variable_fct_name("exp")
 )
 
 log = make_function(
