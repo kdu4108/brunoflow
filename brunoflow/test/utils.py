@@ -1,6 +1,7 @@
 from collections.abc import Iterable
 from typing import List
 import brunoflow as bf
+from jax import numpy as jnp
 import numpy as np
 import random
 import torch
@@ -21,7 +22,7 @@ class TestInput:
 def inputs_to_params(inp, lift_every_other=False):
     ret = []
     for i, val in enumerate(inp.vals):
-        if isinstance(val, int) or (isinstance(val, np.ndarray) and val.dtype == int):
+        if isinstance(val, int) or (isinstance(val, jnp.ndarray) and val.dtype == int):
             ret.append(val)
         elif not lift_every_other or i % 2 == 0:
             ret.append(bf.Parameter(val))
@@ -37,27 +38,32 @@ def inputs_to_torch(inp, requires_grad=False):
             ret.append(val)
         elif isinstance(val, float):
             ret.append(torch.tensor([val], requires_grad=requires_grad))
-        elif isinstance(val, np.ndarray) and val.dtype == int:
-            ret.append(torch.tensor(val))
+        elif isinstance(val, jnp.ndarray) and val.dtype == int:
+            ret.append(torch.tensor(np.array(val)))
         else:
-            ret.append(torch.tensor(val, requires_grad=requires_grad))
+            if isinstance(val, jnp.ndarray):
+                ret.append(torch.tensor(np.array(val), requires_grad=requires_grad))
+            else:
+                ret.append(torch.tensor(val, requires_grad=requires_grad))
     return ret
 
 
 def check(self, x, target):
     if isinstance(x, bf.ad.Node):
         x = x.val
-    if isinstance(x, np.ndarray):
+    if isinstance(x, jnp.ndarray) or isinstance(x, np.ndarray):
+        if isinstance(x, np.ndarray):
+            print(f"WARNING: input x={x} has type nparray instead of jnparray.")
         if x.dtype == bool or x.dtype == int:
-            if not np.array_equal(x, target.numpy()):
+            if not jnp.array_equal(x, target.numpy()):
                 self.assertIs(x, target.numpy())
         elif x.dtype == float:
-            if not np.allclose(x, target.numpy(), rtol=rtol, atol=atol):
+            if not jnp.allclose(x, target.numpy(), rtol=rtol, atol=atol):
                 self.assertIs(x, target.numpy())
     elif isinstance(x, bool):
         self.assertEqual(x, target.item())
     elif isinstance(x, float):
-        if not np.allclose(x, target.item(), rtol=rtol, atol=atol):
+        if not jnp.allclose(x, target.item(), rtol=rtol, atol=atol):
             self.assertIs(x, target.item())
     elif isinstance(x, Iterable):
         self.assertEqual(len(x), len(target))
@@ -130,7 +136,8 @@ def inputs(input_vals):
 def random_inputs(input_shapes, rand=np.random.normal):
     return [
         TestInput(
-            reduce(lambda a, b: a + "x" + b, [str(shape) for shape in shapes]), [rand(size=shape) for shape in shapes]
+            reduce(lambda a, b: a + "x" + b, [str(shape) for shape in shapes]),
+            [jnp.array(rand(size=shape)) for shape in shapes],
         )
         for shapes in input_shapes
     ]
@@ -153,7 +160,7 @@ def get_all_paths_from_src_to_target_node(target_node: Node, src_node: Node) -> 
     # Helper for bruteforce computing backprop values
     all_paths = get_all_paths_to_node(target_node)
     all_paths_from_src_to_target = [
-        path for path in all_paths if np.all((path[0] == src_node).val)
+        path for path in all_paths if jnp.all((path[0] == src_node).val)
     ]  # Note - equality is simply checking if the value of the two nodes is the same, so be careful!
     print(all_paths_from_src_to_target)
     return all_paths_from_src_to_target

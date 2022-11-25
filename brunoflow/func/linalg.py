@@ -2,7 +2,7 @@
 This module implements autodiff versions of common linear algebra functions.
 """
 
-import numpy as np
+from jax import numpy as jnp
 from .function import make_function
 from .reductions import *
 from . import math
@@ -32,12 +32,12 @@ def transpose_backward(out_val, out_grad, x, axes):
     #  semiring value (e.g. the abs_val_grad and entropy).
     # Extract the appropriate value for the semiring.
     out_grad = get_relevant_out_grad_val(out_grad)
-    inverse_perm = np.arange(len(axes))[np.argsort(axes)]
-    return np.transpose(out_grad, inverse_perm), None
+    inverse_perm = jnp.arange(len(axes))[jnp.argsort(axes)]
+    return jnp.transpose(out_grad, inverse_perm), None
 
 
 __transpose = make_function(
-    lambda x, axes: np.transpose(x, axes),
+    lambda x, axes: jnp.transpose(x, axes),
     transpose_backward,
     construct_single_variable_fct_name("transpose", ("axes",)),
 )
@@ -66,7 +66,7 @@ def __np_matrix_transpose(x):
     axes = list(range(x.ndim))
     axes[-2] = x.ndim - 1
     axes[-1] = x.ndim - 2
-    return np.transpose(x, axes)
+    return jnp.transpose(x, axes)
 
 
 def diag(x, k=0):
@@ -99,29 +99,29 @@ def diag_backward(out_val, out_grad, x, k):
     if x.ndim == 2:
         return diagflat_nonsquare(out_grad, k, x.shape)
     else:
-        out_grad = np.reshape(out_grad, (-1, out_grad.shape[-1]))
+        out_grad = jnp.reshape(out_grad, (-1, out_grad.shape[-1]))
         b = out_grad.shape[0]
         n = x.shape[-2]
         m = x.shape[-1]
-        grad = np.zeros((b, n, m))
+        grad = jnp.zeros((b, n, m))
         for i in range(b):
             grad[i] = diagflat_nonsquare(out_grad[i], k, grad[i].shape)
-        return np.reshape(grad, x.shape), None
+        return jnp.reshape(grad, x.shape), None
 
 
 def diagflat_nonsquare(diag_vec, k, out_shape):
-    diag_mat = np.diagflat(diag_vec, k)
+    diag_mat = jnp.diagflat(diag_vec, k)
     ds = diag_mat.shape
     os = out_shape
     # Add extra padding rows/cols, if needed
-    diag_mat = np.pad(diag_mat, [(0, max(0, os[0] - ds[0])), (0, max(0, os[1] - ds[1]))], "constant")
+    diag_mat = jnp.pad(diag_mat, [(0, max(0, os[0] - ds[0])), (0, max(0, os[1] - ds[1]))], "constant")
     # Delete any extraneous rows/cols, if needed
     diag_mat = diag_mat[0 : os[0], 0 : os[1]]
     return diag_mat
 
 
 _diag = make_function(
-    lambda x, k: np.diagonal(x, offset=k, axis1=-2, axis2=-1),
+    lambda x, k: jnp.diagonal(x, offset=k, axis1=-2, axis2=-1),
     diag_backward,
     construct_single_variable_fct_name("diag", additional_arg_names=("offset",)),
 )
@@ -163,11 +163,11 @@ def det_backward(out_val, out_grad, x):
     #  semiring value (e.g. the abs_val_grad and entropy).
     # Extract the appropriate value for the semiring.
     out_grad = get_relevant_out_grad_val(out_grad)
-    return np.expand_dims(np.expand_dims(out_val * out_grad, -1), -1) * __np_matrix_transpose(np.linalg.inv(x))
+    return jnp.expand_dims(jnp.expand_dims(out_val * out_grad, -1), -1) * __np_matrix_transpose(jnp.linalg.inv(x))
 
 
 __det = make_function(
-    lambda x: np.linalg.det(x),
+    lambda x: jnp.linalg.det(x),
     det_backward,
     construct_single_variable_fct_name("det"),
 )
@@ -196,10 +196,10 @@ def inv_backward(out_val, out_grad, x):
         )
     out_grad = get_relevant_out_grad_val(out_grad)
     out_val_T = __np_matrix_transpose(out_val)
-    return -np.matmul(out_val_T, np.matmul(out_grad, out_val_T))
+    return -jnp.matmul(out_val_T, jnp.matmul(out_grad, out_val_T))
 
 
-__inv = make_function(lambda x: np.linalg.inv(x), inv_backward, construct_single_variable_fct_name("inv"))
+__inv = make_function(lambda x: jnp.linalg.inv(x), inv_backward, construct_single_variable_fct_name("inv"))
 
 
 def norm(x, axis=None):
@@ -241,34 +241,34 @@ def norm(x, axis=None):
 
 # Matrix multiplication and its infix operator (@)
 def matmul_backward(out_val, out_grad, A, B):
-    A_factor = np.copy(A)
-    B_factor = np.copy(B)
+    A_factor = jnp.copy(A)
+    B_factor = jnp.copy(B)
     if isinstance(out_grad, dict) and "out_entropy" in out_grad:
         out_entropy = out_grad["out_entropy"]
         out_abs_val_grad = out_grad["out_abs_val_grad"]
-        A_factor = np.abs(A_factor)
-        B_factor = np.abs(B_factor)
+        A_factor = jnp.abs(A_factor)
+        B_factor = jnp.abs(B_factor)
 
         return (
-            np.matmul(out_entropy, __np_matrix_transpose(B_factor))
-            + np.matmul(out_abs_val_grad, __np_matrix_transpose(-B_factor * np.log(B_factor))),
-            np.matmul(__np_matrix_transpose(A_factor), out_entropy)
-            + np.matmul(__np_matrix_transpose(-A_factor * np.log(A_factor)), out_abs_val_grad),
+            jnp.matmul(out_entropy, __np_matrix_transpose(B_factor))
+            + jnp.matmul(out_abs_val_grad, __np_matrix_transpose(-B_factor * jnp.log(B_factor))),
+            jnp.matmul(__np_matrix_transpose(A_factor), out_entropy)
+            + jnp.matmul(__np_matrix_transpose(-A_factor * jnp.log(A_factor)), out_abs_val_grad),
         )
 
     elif isinstance(out_grad, dict):
         out_grad = out_grad["out_abs_val_grad"]
-        A_factor = np.abs(A_factor)
-        B_factor = np.abs(B_factor)
+        A_factor = jnp.abs(A_factor)
+        B_factor = jnp.abs(B_factor)
 
     return (
-        np.matmul(out_grad, __np_matrix_transpose(B_factor)),
-        np.matmul(__np_matrix_transpose(A_factor), out_grad),
+        jnp.matmul(out_grad, __np_matrix_transpose(B_factor)),
+        jnp.matmul(__np_matrix_transpose(A_factor), out_grad),
     )
 
 
 matmul = make_function(
-    lambda A, B: np.matmul(A, B),
+    lambda A, B: jnp.matmul(A, B),
     matmul_backward,
     construct_double_variable_fct_name("matmul"),
 )

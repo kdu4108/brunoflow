@@ -11,7 +11,7 @@ This is correct and easy to do, but it is less efficient than implementing
     computation graph).
 """
 
-import numpy as np
+from jax import numpy as jnp
 from .function import make_function, pointwise_backward
 from . import math
 from .reductions import reduce_logsumexp
@@ -38,7 +38,7 @@ def sigmoid(x):
 
 
 __sigmoid = make_function(
-    lambda x: 1 / (1 + np.exp(-x)),
+    lambda x: 1 / (1 + jnp.exp(-x)),
     pointwise_backward(lambda out, x: out * (1 - out)),
     construct_single_variable_fct_name("sigmoid"),
 )
@@ -62,8 +62,8 @@ def softplus(x):
 
 
 __softplus = make_function(
-    lambda x: np.log(1 + np.exp(x)),
-    pointwise_backward(lambda out, x: np.exp(x) / (1 + np.exp(x))),
+    lambda x: jnp.log(1 + jnp.exp(x)),
+    pointwise_backward(lambda out, x: jnp.exp(x) / (1 + jnp.exp(x))),
     construct_single_variable_fct_name("softplus"),
 )
 
@@ -104,11 +104,11 @@ def leakyrelu(x, neg_slope=0.01):
 
 
 def leakyrelu_backward(out_val, out_grad, x, neg_slope=0.01):
-    return np.where(out_val > 0, 1, neg_slope), None
+    return jnp.where(out_val > 0, 1, neg_slope), None
 
 
 _leakyrelu = make_function(
-    lambda x, neg_slope: np.maximum(x, 0) + np.minimum(x, 0) * neg_slope,
+    lambda x, neg_slope: jnp.maximum(x, 0) + jnp.minimum(x, 0) * neg_slope,
     pointwise_backward(leakyrelu_backward),
     construct_single_variable_fct_name("leakyrelu", additional_arg_names=("neg_slope",)),
 )

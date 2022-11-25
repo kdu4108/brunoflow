@@ -1,7 +1,7 @@
 """
 This module implements common loss functions
 """
-import numpy as np
+from jax import numpy as jnp
 import scipy.special as ssp
 
 from ..func import math, make_function, pointwise_backward
@@ -125,8 +125,8 @@ def nll_loss(output, target, reduction="mean"):
     target = ad.value(target)
     shape = target.shape
     output = reshape(output, [-1, output.shape[-1]])
-    target = np.reshape(target, [-1])
-    err = -output[np.arange(target.size), target]
+    target = jnp.reshape(target, [-1])
+    err = -output[jnp.arange(target.size), target]
     if reduction == "none":
         return reshape(err, shape)
     elif reduction == "mean":
@@ -184,15 +184,15 @@ def _cross_entropy_loss(output, target, reduction="mean"):
     def nll_loss(output, target, reduction):
         target = ad.value(target)
         shape = target.shape
-        output = np.reshape(output, [-1, output.shape[-1]])
-        target = np.reshape(target, [-1])
-        err = -output[np.arange(target.size), target]
+        output = jnp.reshape(output, [-1, output.shape[-1]])
+        target = jnp.reshape(target, [-1])
+        err = -output[jnp.arange(target.size), target]
         if reduction == "none":
-            return np.reshape(err, shape)
+            return jnp.reshape(err, shape)
         elif reduction == "mean":
-            return np.mean(err)
+            return jnp.mean(err)
         elif reduction == "sum":
-            return np.sum(err)
+            return jnp.sum(err)
         else:
             raise ValueError(f"Unsupported reduction type: {reduction}")
 
