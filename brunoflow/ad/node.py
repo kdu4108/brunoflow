@@ -2,7 +2,6 @@ from __future__ import annotations
 from colorama import Style
 import graphviz
 
-# import numpy as np
 import numpy.typing as npt
 from jax import numpy as jnp
 from typing import Any, List, Tuple, Union
@@ -99,7 +98,8 @@ class Node:
 
     def backprop(
         self,
-        values_to_compute=("grad", "max_grad", "abs_val_grad", "entropy"),
+        values_to_compute=("grad", "abs_val_grad", "entropy"),
+        # values_to_compute=("grad", "max_grad", "abs_val_grad", "entropy"),
         save_leaf_grads_only=False,
         verbose=False,
     ):

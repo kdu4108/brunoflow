@@ -1,6 +1,6 @@
 import unittest as ut
 import brunoflow as bf
-import numpy as np
+from jax import numpy as jnp
 import torch
 import scipy.stats as ss
 from . import utils
@@ -8,72 +8,72 @@ from . import utils
 
 class LinalgTestCase(ut.TestCase):
     def test_matmul_1x1_abs_val_grad_and_entropy(self):
-        x_bf = bf.Node(np.array([[2]]))
-        y_bf = bf.Node(np.array([[-9]]))
+        x_bf = bf.Node(jnp.array([[2]]))
+        y_bf = bf.Node(jnp.array([[-9]]))
         out = x_bf @ y_bf
         out.backprop()
-        self.assertTrue(np.array_equal(x_bf.grad, [[-9]]))
-        self.assertTrue(np.array_equal(y_bf.grad, [[2]]))
-        self.assertTrue(np.array_equal(x_bf.abs_val_grad, [[9]]))
-        self.assertTrue(np.array_equal(y_bf.abs_val_grad, [[2]]))
-        self.assertTrue(np.array_equal(x_bf.compute_entropy().val, [[0]]))
-        self.assertTrue(np.array_equal(y_bf.compute_entropy().val, [[0]]))
+        self.assertTrue(jnp.array_equal(x_bf.grad, [[-9]]))
+        self.assertTrue(jnp.array_equal(y_bf.grad, [[2]]))
+        self.assertTrue(jnp.array_equal(x_bf.abs_val_grad, [[9]]))
+        self.assertTrue(jnp.array_equal(y_bf.abs_val_grad, [[2]]))
+        self.assertTrue(jnp.array_equal(x_bf.compute_entropy().val, [[0]]))
+        self.assertTrue(jnp.array_equal(y_bf.compute_entropy().val, [[0]]))
 
     def test_matmul_1x1_abs_val_grad_and_entropy_when_input_has_val_0_isnan(self):
         # This isn't actually something we want, but unclear what the right behavior is.
-        x_bf = bf.Node(np.array([[0]]))
-        y_bf = bf.Node(np.array([[-9]]))
+        x_bf = bf.Node(jnp.array([[0]]))
+        y_bf = bf.Node(jnp.array([[-9]]))
         out = x_bf @ y_bf
         out.backprop()
-        self.assertTrue(np.array_equal(x_bf.grad, [[-9]]))
-        self.assertTrue(np.array_equal(y_bf.grad, [[0]]))
-        self.assertTrue(np.array_equal(x_bf.abs_val_grad, [[9]]))
-        self.assertTrue(np.array_equal(y_bf.abs_val_grad, [[0]]))
-        self.assertTrue(np.array_equal(x_bf.compute_entropy().val, [[0]]))
-        self.assertTrue(np.isnan(y_bf.compute_entropy().val))
+        self.assertTrue(jnp.array_equal(x_bf.grad, [[-9]]))
+        self.assertTrue(jnp.array_equal(y_bf.grad, [[0]]))
+        self.assertTrue(jnp.array_equal(x_bf.abs_val_grad, [[9]]))
+        self.assertTrue(jnp.array_equal(y_bf.abs_val_grad, [[0]]))
+        self.assertTrue(jnp.array_equal(x_bf.compute_entropy().val, [[0]]))
+        self.assertTrue(jnp.isnan(y_bf.compute_entropy().val))
 
     def test_matmul_1x2_abs_val_grad_and_entropy(self):
-        x_bf = bf.Node(np.array([[1, 2]]))
-        y_bf = bf.Node(np.array([[3], [-9]]))
+        x_bf = bf.Node(jnp.array([[1, 2]]))
+        y_bf = bf.Node(jnp.array([[3], [-9]]))
         out = x_bf @ y_bf
         out.backprop()
-        self.assertTrue(np.array_equal(x_bf.grad, np.array([[3, -9]])))
-        self.assertTrue(np.array_equal(y_bf.grad, np.array([[1], [2]])))
-        self.assertTrue(np.array_equal(x_bf.abs_val_grad, np.array([[3, 9]])))
-        self.assertTrue(np.array_equal(y_bf.abs_val_grad, np.array([[1], [2]])))
-        self.assertTrue(np.array_equal(x_bf.compute_entropy().val, np.array([[0., 0.]])))
-        self.assertTrue(np.array_equal(y_bf.compute_entropy().val, np.array([[0.], [0.]])))
+        self.assertTrue(jnp.array_equal(x_bf.grad, jnp.array([[3, -9]])))
+        self.assertTrue(jnp.array_equal(y_bf.grad, jnp.array([[1], [2]])))
+        self.assertTrue(jnp.array_equal(x_bf.abs_val_grad, jnp.array([[3, 9]])))
+        self.assertTrue(jnp.array_equal(y_bf.abs_val_grad, jnp.array([[1], [2]])))
+        self.assertTrue(jnp.array_equal(x_bf.compute_entropy().val, jnp.array([[0.0, 0.0]])))
+        self.assertTrue(jnp.array_equal(y_bf.compute_entropy().val, jnp.array([[0.0], [0.0]])))
 
     def test_matmul_1_times_1x2_abs_val_grad_and_entropy(self):
-        x_bf = bf.Node(np.array([[2]]))
-        y_bf = bf.Node(np.array([[3, -9]]))
+        x_bf = bf.Node(jnp.array([[2]]))
+        y_bf = bf.Node(jnp.array([[3, -9]]))
         out = x_bf @ y_bf
         out.backprop()
 
         # "out_grad" here is simply the identity [[1], [1]], so the "weighted sum" of how the different components of y contributes to the derivative w.r.t. to x is just the sum?
-        self.assertTrue(np.array_equal(x_bf.grad, np.array([[-6]])))
-        self.assertTrue(np.array_equal(y_bf.grad, np.array([[2, 2]])))
-        self.assertTrue(np.array_equal(x_bf.abs_val_grad, np.array([[12]])))
-        self.assertTrue(np.array_equal(y_bf.abs_val_grad, np.array([[2, 2]])))
-        self.assertTrue(np.allclose(x_bf.compute_entropy().val, np.array([[ss.entropy([0.25, 0.75])]])))
-        self.assertTrue(np.array_equal(y_bf.compute_entropy().val, np.array([[0, 0]])))
+        self.assertTrue(jnp.array_equal(x_bf.grad, jnp.array([[-6]])))
+        self.assertTrue(jnp.array_equal(y_bf.grad, jnp.array([[2, 2]])))
+        self.assertTrue(jnp.array_equal(x_bf.abs_val_grad, jnp.array([[12]])))
+        self.assertTrue(jnp.array_equal(y_bf.abs_val_grad, jnp.array([[2, 2]])))
+        self.assertTrue(jnp.allclose(x_bf.compute_entropy().val, jnp.array([[ss.entropy([0.25, 0.75])]])))
+        self.assertTrue(jnp.array_equal(y_bf.compute_entropy().val, jnp.array([[0, 0]])))
 
     def test_matmul_2x1_times_1x2_abs_val_grad_and_entropy(self):
-        x_bf = bf.Node(np.array([[2], [8]]))
-        y_bf = bf.Node(np.array([[3, -9]]))
+        x_bf = bf.Node(jnp.array([[2], [8]]))
+        y_bf = bf.Node(jnp.array([[3, -9]]))
         out = x_bf @ y_bf
         out.backprop()
 
         # "out_grad" here is simply the identity [[1, 1], [1, 1]], so the "weighted sum" of how the different components of y contributes to the derivative w.r.t. to x is just the sum?
-        self.assertTrue(np.array_equal(x_bf.grad, np.array([[-6], [-6]])))
-        self.assertTrue(np.array_equal(y_bf.grad, np.array([[10, 10]])))
-        self.assertTrue(np.array_equal(x_bf.abs_val_grad, np.array([[12], [12]])))
-        self.assertTrue(np.array_equal(y_bf.abs_val_grad, np.array([[10, 10]])))
+        self.assertTrue(jnp.array_equal(x_bf.grad, jnp.array([[-6], [-6]])))
+        self.assertTrue(jnp.array_equal(y_bf.grad, jnp.array([[10, 10]])))
+        self.assertTrue(jnp.array_equal(x_bf.abs_val_grad, jnp.array([[12], [12]])))
+        self.assertTrue(jnp.array_equal(y_bf.abs_val_grad, jnp.array([[10, 10]])))
         self.assertTrue(
-            np.allclose(x_bf.compute_entropy().val, np.array([[ss.entropy([0.25, 0.75]), ss.entropy([0.25, 0.75])]]))
+            jnp.allclose(x_bf.compute_entropy().val, jnp.array([[ss.entropy([0.25, 0.75]), ss.entropy([0.25, 0.75])]]))
         )
         self.assertTrue(
-            np.array_equal(y_bf.compute_entropy().val, np.array([[ss.entropy([0.2, 0.8]), ss.entropy([0.2, 0.8])]]))
+            jnp.allclose(y_bf.compute_entropy().val, jnp.array([[ss.entropy([0.2, 0.8]), ss.entropy([0.2, 0.8])]]))
         )
 
 

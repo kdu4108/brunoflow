@@ -3,7 +3,7 @@ This module defines functions that alter the shape of a tensor/tensors without c
     their contents.
 """
 
-import numpy as np
+from jax import numpy as jnp
 from collections.abc import Iterable
 from brunoflow.func.utils import construct_single_variable_fct_name, get_relevant_out_grad_val
 from .function import make_function
@@ -38,13 +38,13 @@ def reshape_backward(out_val, out_grad, x, newshape):
     # Extract the appropriate value for the semiring.
     out_grad = get_relevant_out_grad_val(out_grad)
     return (
-        np.reshape(out_grad, x.shape),
+        jnp.reshape(out_grad, x.shape),
         None,
     )
 
 
 __reshape = make_function(
-    np.reshape,
+    jnp.reshape,
     reshape_backward,
     construct_single_variable_fct_name("reshape", additional_arg_names=("shape",)),
 )
@@ -76,13 +76,13 @@ def squeeze_backward(out_val, out_grad, x, axis):
     # Extract the appropriate value for the semiring.
     out_grad = get_relevant_out_grad_val(out_grad)
     return (
-        np.reshape(out_grad, x.shape),
+        jnp.reshape(out_grad, x.shape),
         None,
     )
 
 
 _squeeze = make_function(
-    np.squeeze,
+    jnp.squeeze,
     squeeze_backward,
     construct_single_variable_fct_name("squeeze", additional_arg_names=("axis",)),
 )
@@ -114,13 +114,13 @@ def expand_dims_backward(out_val, out_grad, x, axis):
     # Extract the appropriate value for the semiring.
     out_grad = get_relevant_out_grad_val(out_grad)
     return (
-        np.reshape(out_grad, x.shape),
+        jnp.reshape(out_grad, x.shape),
         None,
     )
 
 
 __expand_dims = make_function(
-    np.expand_dims,
+    jnp.expand_dims,
     expand_dims_backward,
     construct_single_variable_fct_name("expand_dims", additional_arg_names=("axis",)),
 )
@@ -167,7 +167,7 @@ def concat_backward(out_val, out_grad, axis, *xs):
 
 
 __concat = make_function(
-    lambda axis, *xs: np.concatenate(xs, axis),
+    lambda axis, *xs: jnp.concatenate(xs, axis),
     concat_backward,
     lambda axis, *xs: f"(concat {tuple(name(x) for x in xs)} axis={axis})",
 )
@@ -246,13 +246,18 @@ def getitem_backward(out_val, out_grad, x, arg):
     #  semiring value (e.g. the abs_val_grad and entropy).
     # Extract the appropriate value for the semiring.
     out_grad = get_relevant_out_grad_val(out_grad)
-    grad = np.zeros_like(x)
-    grad[arg] = out_grad
+    grad = jnp.zeros_like(x)
+    # Need to cast list to array because otherwise:
+    # `TypeError: Using a non-tuple sequence for multidimensional indexing is not allowed; use `arr[array(seq)]` instead of `arr[seq]`.
+    #   See https://github.com/google/jax/issues/4564 for more information.`
+    grad = grad.at[jnp.array(arg)].set(out_grad)
     return grad, None
 
 
 Node.__getitem__ = make_function(
-    lambda x, arg: x[arg],
+    lambda x, arg: x[
+        jnp.array(arg)
+    ],  # Need to cast list to array because otherwise: `TypeError: Using a non-tuple sequence for multidimensional indexing is not allowed; use `arr[array(seq)]` instead of `arr[seq]`. See https://github.com/google/jax/issues/4564 for more information.`
     getitem_backward,
     construct_single_variable_fct_name("getitem", additional_arg_names=("arg",)),
 )

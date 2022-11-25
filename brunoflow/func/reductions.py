@@ -2,9 +2,9 @@
 This module defines functions that perform tensor reductions
 """
 
-import numpy as np
+from jax import numpy as jnp
 from brunoflow.ad import name
-from brunoflow.func.utils import construct_single_variable_fct_name, get_relevant_out_grad_val
+from brunoflow.func.utils import construct_single_variable_fct_name, custom_put_along_axis, get_relevant_out_grad_val
 from .function import make_function
 from . import math
 from .shape import expand_dims
@@ -37,16 +37,16 @@ def reduce_min_backward(out_val, out_grad, x, axis=None):
     #  semiring value (e.g. the abs_val_grad and entropy).
     # Extract the appropriate value for the semiring.
     out_grad = get_relevant_out_grad_val(out_grad)
-    grad = np.zeros_like(x)
+    grad = jnp.zeros_like(x)
     if axis is None:
-        min_index = np.argmin(x)
-        min_index = np.unravel_index(min_index, x.shape)
-        grad[min_index] = out_grad
+        min_index = jnp.argmin(x)
+        min_index = jnp.unravel_index(min_index, x.shape)
+        grad = grad.at[min_index].set(out_grad)
     else:
-        min_indices = np.argmin(x, axis)
-        min_indices = np.expand_dims(min_indices, axis)
-        out_grad = np.expand_dims(out_grad, axis)
-        np.put_along_axis(grad, min_indices, out_grad, axis)
+        min_indices = jnp.argmin(x, axis)
+        min_indices = jnp.expand_dims(min_indices, axis)
+        out_grad = jnp.expand_dims(out_grad, axis)
+        grad = custom_put_along_axis(grad, min_indices, out_grad, axis)
     return grad, None
 
 
@@ -84,16 +84,16 @@ def reduce_max_backward(out_val, out_grad, x, axis=None):
     #  semiring value (e.g. the abs_val_grad and entropy).
     # Extract the appropriate value for the semiring.
     out_grad = get_relevant_out_grad_val(out_grad)
-    grad = np.zeros_like(x)
+    grad = jnp.zeros_like(x)
     if axis is None:
-        min_index = np.argmax(x)
-        min_index = np.unravel_index(min_index, x.shape)
-        grad[min_index] = out_grad
+        min_index = jnp.argmax(x)
+        min_index = jnp.unravel_index(min_index, x.shape)
+        grad = grad.at[min_index].set(out_grad)
     else:
-        min_indices = np.argmax(x, axis)
-        min_indices = np.expand_dims(min_indices, axis)
-        out_grad = np.expand_dims(out_grad, axis)
-        np.put_along_axis(grad, min_indices, out_grad, axis)
+        min_indices = jnp.argmax(x, axis)
+        min_indices = jnp.expand_dims(min_indices, axis)
+        out_grad = jnp.expand_dims(out_grad, axis)
+        grad = custom_put_along_axis(grad, min_indices, out_grad, axis)
     return grad, None
 
 
@@ -132,14 +132,14 @@ def reduce_sum_backward(out_val, out_grad, x, axis=None):
     # Extract the appropriate value for the semiring.
     out_grad = get_relevant_out_grad_val(out_grad)
     if axis is None:
-        return np.full(x.shape, out_grad), None
+        return jnp.full(x.shape, out_grad), None
     else:
         stacks = [out_grad for i in range(x.shape[axis])]
-        return np.stack(stacks, axis), None
+        return jnp.stack(stacks, axis), None
 
 
 _reduce_sum = make_function(
-    lambda x, axis: np.sum(x, axis=axis),
+    lambda x, axis: jnp.sum(x, axis=axis),
     reduce_sum_backward,
     construct_single_variable_fct_name("sum", additional_arg_names=("axis",)),
 )
