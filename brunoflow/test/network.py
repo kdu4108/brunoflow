@@ -1,9 +1,12 @@
 import unittest as ut
 import brunoflow as bf
 import numpy as np
+import jax
 
 
 class NetworkTestCase(ut.TestCase):
+    jax.config.update("jax_enable_x64", True)
+
     def check(self, val, target):
         err_thresh = 0.05
         diff_norm = np.mean(np.abs(val - target))

@@ -1,5 +1,6 @@
 import brunoflow as bf
 from jax import numpy as jnp
+import jax
 import numpy as np
 import torch
 import unittest as ut
@@ -7,7 +8,7 @@ from . import utils
 
 
 class LossTestCase(ut.TestCase):
-    pass
+    jax.config.update("jax_enable_x64", True)
 
 
 ######################################################

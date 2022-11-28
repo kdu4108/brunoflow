@@ -1,12 +1,13 @@
 import unittest as ut
 import brunoflow as bf
 import numpy as np
+import jax
 import torch
 from . import utils
 
 
 class ShapeTestCase(ut.TestCase):
-    pass
+    jax.config.update("jax_enable_x64", True)
 
 
 ######################################################
