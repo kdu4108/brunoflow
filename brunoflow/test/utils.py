@@ -44,6 +44,10 @@ def inputs_to_torch(inp, requires_grad=False):
             if isinstance(val, jnp.ndarray):
                 ret.append(torch.tensor(np.array(val), requires_grad=requires_grad))
             else:
+                if isinstance(val, np.ndarray):
+                    print(
+                        f"WARNING: input {val} to torch has type np.ndarray instead of jnp.ndarray, so weird things might happen during testing."
+                    )
                 ret.append(torch.tensor(val, requires_grad=requires_grad))
     return ret
 

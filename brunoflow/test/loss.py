@@ -1,7 +1,8 @@
-import unittest as ut
 import brunoflow as bf
+from jax import numpy as jnp
 import numpy as np
 import torch
+import unittest as ut
 from . import utils
 
 
@@ -93,8 +94,8 @@ utils.add_tests(
     torch_fn=lambda x, y: torch.nn.functional.nll_loss(torch.transpose(x, 1, -1), y),
     inputs=utils.inputs(
         [
-            [np.random.normal(size=(2, 3)), np.full((2), 1)],
-            [np.random.normal(size=(2, 2, 3)), np.full((2, 2), 1)],
+            [jnp.array(np.random.normal(size=(2, 3))), jnp.array(np.full((2), 1))],
+            [jnp.array(np.random.normal(size=(2, 2, 3))), jnp.array(np.full((2, 2), 1))],
         ]
     ),
 )
@@ -106,8 +107,8 @@ utils.add_tests(
     torch_fn=lambda x, y: torch.nn.functional.nll_loss(torch.transpose(x, 1, -1), y, reduction="sum"),
     inputs=utils.inputs(
         [
-            [np.random.normal(size=(2, 3)), np.full((2), 1)],
-            [np.random.normal(size=(2, 2, 3)), np.full((2, 2), 1)],
+            [jnp.array(np.random.normal(size=(2, 3))), jnp.array(np.full((2), 1))],
+            [jnp.array(np.random.normal(size=(2, 2, 3))), jnp.array(np.full((2, 2), 1))],
         ]
     ),
 )
@@ -119,8 +120,8 @@ utils.add_tests(
     torch_fn=lambda x, y: torch.nn.functional.nll_loss(torch.transpose(x, 1, -1), y, reduction="none"),
     inputs=utils.inputs(
         [
-            [np.random.normal(size=(2, 3)), np.full((2), 1)],
-            [np.random.normal(size=(2, 2, 3)), np.full((2, 2), 1)],
+            [jnp.array(np.random.normal(size=(2, 3))), jnp.array(np.full((2), 1))],
+            [jnp.array(np.random.normal(size=(2, 2, 3))), jnp.array(np.full((2, 2), 1))],
         ]
     ),
 )
@@ -132,8 +133,8 @@ utils.add_tests(
     torch_fn=lambda x, y: torch.nn.functional.cross_entropy(torch.transpose(x, 1, -1), y),
     inputs=utils.inputs(
         [
-            [np.random.normal(size=(2, 3)), np.full((2), 1)],
-            [np.random.normal(size=(2, 2, 3)), np.full((2, 2), 1)],
+            [jnp.array(np.random.normal(size=(2, 3))), jnp.array(np.full((2), 1))],
+            [jnp.array(np.random.normal(size=(2, 2, 3))), jnp.array(np.full((2, 2), 1))],
         ]
     ),
 )
@@ -145,8 +146,8 @@ utils.add_tests(
     torch_fn=lambda x, y: torch.nn.functional.cross_entropy(torch.transpose(x, 1, -1), y, reduction="sum"),
     inputs=utils.inputs(
         [
-            [np.random.normal(size=(2, 3)), np.full((2), 1)],
-            [np.random.normal(size=(2, 2, 3)), np.full((2, 2), 1)],
+            [jnp.array(np.random.normal(size=(2, 3))), jnp.array(np.full((2), 1))],
+            [jnp.array(np.random.normal(size=(2, 2, 3))), jnp.array(np.full((2, 2), 1))],
         ]
     ),
 )
@@ -158,8 +159,8 @@ utils.add_tests(
     torch_fn=lambda x, y: torch.nn.functional.cross_entropy(torch.transpose(x, 1, -1), y, reduction="none"),
     inputs=utils.inputs(
         [
-            [np.random.normal(size=(2, 3)), np.full((2), 1)],
-            [np.random.normal(size=(2, 2, 3)), np.full((2, 2), 1)],
+            [jnp.array(np.random.normal(size=(2, 3))), jnp.array(np.full((2), 1))],
+            [jnp.array(np.random.normal(size=(2, 2, 3))), jnp.array(np.full((2, 2), 1))],
         ]
     ),
 )

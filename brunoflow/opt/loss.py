@@ -91,7 +91,7 @@ def bce_loss(output, target, reduction="mean"):
 
     PyTorch equivalent: torch.nn.functional.binary_cross_entropy
     """
-    err = -(target * math.log(output) + (1.0 - target) * math.log(1.0 - output))
+    err = -(math.log(output) * target + math.log(1.0 - output) * (1.0 - target))
     if reduction == "none":
         return err
     elif reduction == "mean":
