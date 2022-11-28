@@ -109,7 +109,7 @@ utils.add_tests(
 
 utils.add_tests(
     ShapeTestCase,
-    basename="test_index_slice/int",
+    basename="test_index_slice__int",
     fn=lambda x: x[1:3, 1],
     torch_fn=lambda x: x[1:3, 1],
     inputs=utils.random_inputs([[(6, 5)]]),
@@ -125,7 +125,7 @@ utils.add_tests(
 
 utils.add_tests(
     ShapeTestCase,
-    basename="test_index_array/array",
+    basename="test_index_array__array",
     fn=lambda x: x[[1, 3, 4], [0, 1, 3]],
     torch_fn=lambda x: x[[1, 3, 4], [0, 1, 3]],
     inputs=utils.random_inputs([[(6, 5)]]),
