@@ -297,6 +297,8 @@ class AutodiffMaxGradTestCase(ut.TestCase):
 
 
 class AutodiffEntropyTestCase(ut.TestCase):
+    jax.config.update("jax_enable_x64", True)
+
     #################
     # ENTROPY TESTS #
     #################
@@ -547,6 +549,8 @@ class BruteForceTestCase(ut.TestCase):
 
 
 class RegularizationTestCase(ut.TestCase):
+    jax.config.update("jax_enable_x64", True)
+
     ########################
     # REGULARIZATION TESTS #
     ########################

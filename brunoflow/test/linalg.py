@@ -1,12 +1,19 @@
-import unittest as ut
 import brunoflow as bf
+import jax
 from jax import numpy as jnp
 import torch
 import scipy.stats as ss
+import unittest as ut
+
 from . import utils
 
 
 class LinalgTestCase(ut.TestCase):
+    # To run: `XLA_PYTHON_CLIENT_PREALLOCATE=false python -m unittest brunoflow.test.linalg.LinalgTestCase`, see # https://github.com/google/jax/issues/7118#issuecomment-950183972
+
+    # Enable 64-bit precision
+    jax.config.update("jax_enable_x64", True)
+
     def test_matmul_1x1_abs_val_grad_and_entropy(self):
         x_bf = bf.Node(jnp.array([[2]]))
         y_bf = bf.Node(jnp.array([[-9]]))

@@ -32,7 +32,7 @@ def transpose_backward(out_val, out_grad, x, axes):
     #  semiring value (e.g. the abs_val_grad and entropy).
     # Extract the appropriate value for the semiring.
     out_grad = get_relevant_out_grad_val(out_grad)
-    inverse_perm = jnp.arange(len(axes))[jnp.argsort(axes)]
+    inverse_perm = jnp.arange(len(axes))[jnp.argsort(jnp.array(axes))]
     return jnp.transpose(out_grad, inverse_perm), None
 
 
@@ -105,7 +105,7 @@ def diag_backward(out_val, out_grad, x, k):
         m = x.shape[-1]
         grad = jnp.zeros((b, n, m))
         for i in range(b):
-            grad[i] = diagflat_nonsquare(out_grad[i], k, grad[i].shape)
+            grad = grad.at[i].set(diagflat_nonsquare(out_grad[i], k, grad[i].shape))
         return jnp.reshape(grad, x.shape), None
 
 
