@@ -584,5 +584,15 @@ class RegularizationTestCase(ut.TestCase):
         assert regularized.val == 10.5
         regularized.backprop(verbose=True)
 
+<<<<<<< HEAD
         self.assertTrue(jnp.allclose(linear_bf.W.grad, jnp.array([[4.0, 1.0]])))
         self.assertTrue(jnp.allclose(linear_bf.b.grad, jnp.array([[2.0, 0.0]])))
+=======
+        self.assertTrue(np.allclose(linear_bf.W.grad, np.array([[4.0, 1.0]])))
+        self.assertTrue(np.allclose(linear_bf.b.grad, np.array([[2.0, 0.0]])))
+
+
+class VisualizeTestCase(ut.TestCase):
+    def test_visualize_node(self):
+        pass
+>>>>>>> fcc0443 (WIP visualization code)

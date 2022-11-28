@@ -12,6 +12,12 @@ import brunoflow as bf
 from brunoflow.ad.utils import abs_val_grad_product_fn, entropy_product_fn
 
 
+# class IdState:
+#     # Stateful way of keeping track of next available id
+#     def __init__(self):
+#         self.next_available_id = 0
+
+
 class Node:
     """
     Represents one node in an autodiff computation graph.
@@ -67,6 +73,45 @@ class Node:
         self.name = name
         self.__num_uses = 0
         self.graph = graphviz.Digraph("computation_graph", filename="computation_graph.gv")
+
+    def id(self, next_available_id: int = 0):
+        if self.id is None:
+            self.id = next_available_id
+            next_available_id += 1
+
+        return self.id, next_availble_id
+
+    def subtree(self, next_available_id: int = 0):
+        nodes, edges = [], []
+
+        current_node, next_available_id = self.id(next_available_id)
+
+        # current_node = next_available_id
+        # next_available_id += 1
+
+        # if current_node not in nodes:
+        nodes.append(current_node)
+
+        if len(self.inputs) > 0:
+            for input_node in self.inputs:
+                edges.append((input_node.id(next_available_id), current_node.id(next_available_id)))
+
+                if isinstance(input_node, Node):
+                    # recurse
+                    local_nodes, local_edges, next_available_id = input_node.subtree(next_available_id)
+                    nodes.extend(local_nodes)
+                    edges.extend(local_edges)
+                else:
+                    # create node for numpy array
+                    nodes.append(next_available_id)
+                    next_available_id += 1
+
+        return nodes, edges, next_available_id
+
+    def visualize(self):
+        # 
+        self.inputs
+        pass
 
     def set_name(self, new_name: str):
         self.name = new_name
