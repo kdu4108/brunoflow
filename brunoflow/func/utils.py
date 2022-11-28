@@ -200,3 +200,13 @@ def custom_put_along_axis(arr, indices, values, axis):
     # use the fancy index
     arr = arr.at[tuple(_make_along_axis_idx(arr_shape, indices, axis))].set(values)
     return arr
+
+
+def typecast_index_arg_for_jax(arg):
+    """
+    When indexing into a JAX array, if the indexing argument is a list, we need to cast it into an jnparray.
+    Otherwise: `TypeError: Using a non-tuple sequence for multidimensional indexing is not allowed; use `arr[array(seq)]` instead of `arr[seq]`. See https://github.com/google/jax/issues/4564 for more information.`
+
+    However, we can't do this for all args because if it's a tuple, we may be trying index a single item and receive a slice instead.
+    """
+    return jnp.array(arg) if isinstance(arg, list) else arg

@@ -5,7 +5,11 @@ This module defines functions that alter the shape of a tensor/tensors without c
 
 from jax import numpy as jnp
 from collections.abc import Iterable
-from brunoflow.func.utils import construct_single_variable_fct_name, get_relevant_out_grad_val
+from brunoflow.func.utils import (
+    construct_single_variable_fct_name,
+    get_relevant_out_grad_val,
+    typecast_index_arg_for_jax,
+)
 from .function import make_function
 from ..ad import Node, name
 
@@ -250,13 +254,13 @@ def getitem_backward(out_val, out_grad, x, arg):
     # Need to cast list to array because otherwise:
     # `TypeError: Using a non-tuple sequence for multidimensional indexing is not allowed; use `arr[array(seq)]` instead of `arr[seq]`.
     #   See https://github.com/google/jax/issues/4564 for more information.`
-    grad = grad.at[jnp.array(arg)].set(out_grad)
+    grad = grad.at[typecast_index_arg_for_jax(arg)].set(out_grad)
     return grad, None
 
 
 Node.__getitem__ = make_function(
     lambda x, arg: x[
-        jnp.array(arg)
+        typecast_index_arg_for_jax(arg)
     ],  # Need to cast list to array because otherwise: `TypeError: Using a non-tuple sequence for multidimensional indexing is not allowed; use `arr[array(seq)]` instead of `arr[seq]`. See https://github.com/google/jax/issues/4564 for more information.`
     getitem_backward,
     construct_single_variable_fct_name("getitem", additional_arg_names=("arg",)),
