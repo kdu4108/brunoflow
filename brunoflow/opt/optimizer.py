@@ -89,8 +89,8 @@ class Adam(Optimizer):
         self.eps = eps
         self.beta1 = beta1
         self.beta2 = beta2
-        self.m = [jnp.zeros_like(p, dtype=float) for p in params_to_optimize]
-        self.v = [jnp.zeros_like(p, dtype=float) for p in params_to_optimize]
+        self.m = [jnp.zeros_like(p.val, dtype=float) for p in params_to_optimize]
+        self.v = [jnp.zeros_like(p.val, dtype=float) for p in params_to_optimize]
 
     def step(self):
         for i, p in enumerate(self.params):
