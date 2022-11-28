@@ -1,6 +1,7 @@
-import unittest as ut
 import brunoflow as bf
+import jax
 import numpy as np
+import unittest as ut
 
 m = 3.4
 b = 1.2
@@ -32,6 +33,8 @@ def linreg(opt_ctor):
 
 
 class OptimizerTestCase(ut.TestCase):
+    jax.config.update("jax_enable_x64", True)
+
     def check(self, val, target):
         if not np.allclose(val, target, rtol=0.05, atol=0):
             self.assertIs(val, target)
