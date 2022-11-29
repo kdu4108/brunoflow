@@ -1,5 +1,8 @@
 ## Using Brunoflow
-To use Brunoflow immediately, clone the repo and then run `pip install -e .` in a Python3.9+ environment.. Ideally, do this in a fresh conda environment! Since this is an editable install, you should be able to edit files directly and then those changes should automatically update when you use the library.
+We recommend installing brunoflow into a fresh conda environment (Python3.9+). To create and then activate a conda environment, run `conda create --name bflow python=3.9` and then `conda activate bflow`.
+
+
+Then, to  install brunoflow, clone the repo and run `pip install -e .` (make sure this is within your new conda env). Since this is an editable install, you should be able to edit files directly and then those changes should automatically update when you use the library.
 
 ### Example code
 ```
