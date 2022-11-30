@@ -13,8 +13,6 @@ from brunoflow.test.utils import get_all_paths_from_src_to_target_node, get_all_
 
 
 class AutodiffMaxGradTestCase(ut.TestCase):
-    jax.config.update("jax_enable_x64", True)
-
     ###################################
     # MAX GRAD AND MAX NEG GRAD TESTS #
     ###################################
@@ -297,8 +295,6 @@ class AutodiffMaxGradTestCase(ut.TestCase):
 
 
 class AutodiffEntropyTestCase(ut.TestCase):
-    jax.config.update("jax_enable_x64", True)
-
     #################
     # ENTROPY TESTS #
     #################
@@ -344,7 +340,7 @@ class AutodiffEntropyTestCase(ut.TestCase):
         print("x_bf.compute_entropy():", x_bf.compute_entropy())
         print("x_bf grad:", x_bf.grad)
 
-        self.assertTrue(jnp.array_equal(x_bf.compute_entropy().val, jnp.array([jnp.log(2), jnp.log(2), jnp.log(2)])))
+        self.assertTrue(jnp.allclose(x_bf.compute_entropy().val, jnp.array([jnp.log(2), jnp.log(2), jnp.log(2)])))
 
     def test_entropy_of_vector_variable_in_two_paths_with_input_dependent_gradients(self):
         # Tests 3 things - (1) this works vectorized, (2) this works when you pass in different elemnts in each vector, and (3) the negative gradient gets abs val'd and works too.
@@ -357,7 +353,7 @@ class AutodiffEntropyTestCase(ut.TestCase):
 
         print((-2 * 3 * jnp.log(2 * 3) - 3 * jnp.log(3)) / (2 * 3 + 3) + jnp.log(2 * 3 + 3))
         self.assertTrue(
-            jnp.array_equal(
+            jnp.allclose(
                 x_bf.compute_entropy().val,
                 jnp.array(
                     [
@@ -378,7 +374,7 @@ class AutodiffEntropyTestCase(ut.TestCase):
         print("x_bf grad:", x_bf.grad)
 
         self.assertTrue(
-            jnp.array_equal(
+            jnp.allclose(
                 x_bf.compute_entropy().val,
                 jnp.array(
                     [
@@ -549,8 +545,6 @@ class BruteForceTestCase(ut.TestCase):
 
 
 class RegularizationTestCase(ut.TestCase):
-    jax.config.update("jax_enable_x64", True)
-
     ########################
     # REGULARIZATION TESTS #
     ########################

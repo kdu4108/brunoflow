@@ -12,7 +12,7 @@ class LinalgTestCase(ut.TestCase):
     # To run: `XLA_PYTHON_CLIENT_PREALLOCATE=false python -m unittest brunoflow.test.linalg.LinalgTestCase`, see # https://github.com/google/jax/issues/7118#issuecomment-950183972
 
     # Enable 64-bit precision
-    jax.config.update("jax_enable_x64", True)
+    # jax.config.update("jax_enable_x64", True)
 
     def test_matmul_1x1_abs_val_grad_and_entropy(self):
         x_bf = bf.Node(jnp.array([[2]]))
@@ -23,8 +23,8 @@ class LinalgTestCase(ut.TestCase):
         self.assertTrue(jnp.array_equal(y_bf.grad, [[2]]))
         self.assertTrue(jnp.array_equal(x_bf.abs_val_grad, [[9]]))
         self.assertTrue(jnp.array_equal(y_bf.abs_val_grad, [[2]]))
-        self.assertTrue(jnp.array_equal(x_bf.compute_entropy().val, [[0]]))
-        self.assertTrue(jnp.array_equal(y_bf.compute_entropy().val, [[0]]))
+        self.assertTrue(jnp.allclose(x_bf.compute_entropy().val, jnp.array([[0]]), atol=1e-7))
+        self.assertTrue(jnp.allclose(y_bf.compute_entropy().val, jnp.array([[0]]), atol=1e-7))
 
     def test_matmul_1x1_abs_val_grad_and_entropy_when_input_has_val_0_isnan(self):
         # This isn't actually something we want, but unclear what the right behavior is.
@@ -36,7 +36,7 @@ class LinalgTestCase(ut.TestCase):
         self.assertTrue(jnp.array_equal(y_bf.grad, [[0]]))
         self.assertTrue(jnp.array_equal(x_bf.abs_val_grad, [[9]]))
         self.assertTrue(jnp.array_equal(y_bf.abs_val_grad, [[0]]))
-        self.assertTrue(jnp.array_equal(x_bf.compute_entropy().val, [[0]]))
+        self.assertTrue(jnp.allclose(x_bf.compute_entropy().val, jnp.array([[0]]), atol=1e-7))
         self.assertTrue(jnp.isnan(y_bf.compute_entropy().val))
 
     def test_matmul_1x2_abs_val_grad_and_entropy(self):
@@ -48,8 +48,8 @@ class LinalgTestCase(ut.TestCase):
         self.assertTrue(jnp.array_equal(y_bf.grad, jnp.array([[1], [2]])))
         self.assertTrue(jnp.array_equal(x_bf.abs_val_grad, jnp.array([[3, 9]])))
         self.assertTrue(jnp.array_equal(y_bf.abs_val_grad, jnp.array([[1], [2]])))
-        self.assertTrue(jnp.array_equal(x_bf.compute_entropy().val, jnp.array([[0.0, 0.0]])))
-        self.assertTrue(jnp.array_equal(y_bf.compute_entropy().val, jnp.array([[0.0], [0.0]])))
+        self.assertTrue(jnp.allclose(x_bf.compute_entropy().val, jnp.array([[0.0, 0.0]]), atol=1e-7))
+        self.assertTrue(jnp.allclose(y_bf.compute_entropy().val, jnp.array([[0.0], [0.0]])))
 
     def test_matmul_1_times_1x2_abs_val_grad_and_entropy(self):
         x_bf = bf.Node(jnp.array([[2]]))
@@ -63,7 +63,7 @@ class LinalgTestCase(ut.TestCase):
         self.assertTrue(jnp.array_equal(x_bf.abs_val_grad, jnp.array([[12]])))
         self.assertTrue(jnp.array_equal(y_bf.abs_val_grad, jnp.array([[2, 2]])))
         self.assertTrue(jnp.allclose(x_bf.compute_entropy().val, jnp.array([[ss.entropy([0.25, 0.75])]])))
-        self.assertTrue(jnp.array_equal(y_bf.compute_entropy().val, jnp.array([[0, 0]])))
+        self.assertTrue(jnp.allclose(y_bf.compute_entropy().val, jnp.array([[0, 0]])))
 
     def test_matmul_2x1_times_1x2_abs_val_grad_and_entropy(self):
         x_bf = bf.Node(jnp.array([[2], [8]]))

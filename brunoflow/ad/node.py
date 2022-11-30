@@ -2,6 +2,7 @@ from __future__ import annotations
 from colorama import Style
 import graphviz
 
+import numpy as np
 import numpy.typing as npt
 from jax import numpy as jnp
 from typing import Any, List, Tuple, Union
@@ -44,18 +45,21 @@ class Node:
         inputs: List[Union[Node, jnp.ndarray, Any]] = [],
         name: str = None,
     ):
+        if isinstance(val, np.ndarray):
+            # Force all np arrays to be JAX
+            val = jnp.array(val)
         self.val = val
-        self.grad: Union[jnp.ndarray, jnp.float64] = jnp.zeros_like(val, dtype=jnp.float64)
-        # self.max_grad_of_output_wrt_node: Tuple[Union[jnp.ndarray, jnp.float64], Union[npt.NDArray[Node], Node]] = (
-        #     jnp.full_like(val, fill_value=-jnp.inf, dtype=jnp.float64),
+        self.grad: Union[jnp.ndarray, jnp.float32] = jnp.zeros_like(val, dtype=jnp.float32)
+        # self.max_grad_of_output_wrt_node: Tuple[Union[jnp.ndarray, jnp.float32], Union[npt.NDArray[Node], Node]] = (
+        #     jnp.full_like(val, fill_value=-jnp.inf, dtype=jnp.float32),
         #     jnp.empty_like(val, dtype=type(None)),
         # )
-        # self.max_neg_grad_of_output_wrt_node: Tuple[Union[jnp.ndarray, jnp.float64], Union[npt.NDArray[Node], Node]] = (
-        #     jnp.full_like(val, fill_value=jnp.inf, dtype=jnp.float64),
+        # self.max_neg_grad_of_output_wrt_node: Tuple[Union[jnp.ndarray, jnp.float32], Union[npt.NDArray[Node], Node]] = (
+        #     jnp.full_like(val, fill_value=jnp.inf, dtype=jnp.float32),
         #     jnp.empty_like(val, dtype=type(None)),
         # )
-        self.entropy_wrt_output: Union[jnp.ndarray, jnp.float64] = jnp.zeros_like(val, dtype=jnp.float64)
-        self.abs_val_grad: Union[jnp.ndarray, jnp.float64] = jnp.zeros_like(val, dtype=jnp.float64)
+        self.entropy_wrt_output: Union[jnp.ndarray, jnp.float32] = jnp.zeros_like(val, dtype=jnp.float32)
+        self.abs_val_grad: Union[jnp.ndarray, jnp.float32] = jnp.zeros_like(val, dtype=jnp.float32)
         self.backward_func = backward_func
         self.inputs = inputs
         self.name = name
@@ -398,11 +402,11 @@ class Node:
 
             # Careful - ndarray.fill() when type(ndarray) is int results in this int overflow thing instead of inf.
             # self.max_grad_of_output_wrt_node = (
-            #     jnp.full_like(self.max_grad_of_output_wrt_node[0], fill_value=-jnp.inf, dtype=jnp.float64),
+            #     jnp.full_like(self.max_grad_of_output_wrt_node[0], fill_value=-jnp.inf, dtype=jnp.float32),
             #     jnp.empty_like(self.max_grad_of_output_wrt_node[1], dtype=type(None)),
             # )
             # self.max_neg_grad_of_output_wrt_node = (
-            #     jnp.full_like(self.max_neg_grad_of_output_wrt_node[0], fill_value=jnp.inf, dtype=jnp.float64),
+            #     jnp.full_like(self.max_neg_grad_of_output_wrt_node[0], fill_value=jnp.inf, dtype=jnp.float32),
             #     jnp.empty_like(self.max_neg_grad_of_output_wrt_node[1], dtype=type(None)),
             # )
             self.entropy_wrt_output = jnp.full_like(self.entropy_wrt_output, 0.0)
@@ -444,11 +448,11 @@ class Node:
                 self.grad = jnp.full_like(self.grad, 0.0)
                 # Careful - ndarray.fill() when type(ndarray) is int results in this int overflow thing instead of inf.
                 # self.max_grad_of_output_wrt_node = (
-                #     jnp.full_like(self.max_grad_of_output_wrt_node[0], fill_value=-jnp.inf, dtype=jnp.float64),
+                #     jnp.full_like(self.max_grad_of_output_wrt_node[0], fill_value=-jnp.inf, dtype=jnp.float32),
                 #     jnp.empty_like(self.max_grad_of_output_wrt_node[1], dtype=type(None)),
                 # )
                 # self.max_neg_grad_of_output_wrt_node = (
-                #     jnp.full_like(self.max_neg_grad_of_output_wrt_node[0], fill_value=jnp.inf, dtype=jnp.float64),
+                #     jnp.full_like(self.max_neg_grad_of_output_wrt_node[0], fill_value=jnp.inf, dtype=jnp.float32),
                 #     jnp.empty_like(self.max_neg_grad_of_output_wrt_node[1], dtype=type(None)),
                 # )
                 self.entropy_wrt_output = jnp.full_like(self.entropy_wrt_output, 0.0)

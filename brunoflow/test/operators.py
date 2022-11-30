@@ -7,7 +7,7 @@ from . import utils
 
 
 class OperatorsTestCase(ut.TestCase):
-    jax.config.update("jax_enable_x64", True)
+    pass
 
 
 ######################################################
