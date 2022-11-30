@@ -8,6 +8,7 @@ from . import utils
 
 
 class LossTestCase(ut.TestCase):
+    # needed so that the target/labels are of type int64 --> torch.Long, which is required for many torch loss functions.
     jax.config.update("jax_enable_x64", True)
 
 

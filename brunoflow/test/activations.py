@@ -6,7 +6,7 @@ from . import utils
 
 
 class ActivationsTestCase(ut.TestCase):
-    jax.config.update("jax_enable_x64", True)
+    pass
 
 
 ######################################################
