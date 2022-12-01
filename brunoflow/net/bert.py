@@ -26,7 +26,7 @@ class BERT(Network):
 
     def forward(self, x):
         # x = (seq_len, 30522)
-        emb = matmul(x, self.w_emb)
+        emb = self.w_emb(x)
         out = self.att_layer1(emb)
         out = self.att_layer2(out)
         out = self.att_layer3(out)
