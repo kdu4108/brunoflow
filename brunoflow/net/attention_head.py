@@ -13,7 +13,7 @@ class AttentionHead(Network):
     def forward(self, x):
         # x has dim (bs, 768)
         # output has dim (bs, 64)
-        return reduce_mean(stack([matmul(x, self.q), matmul(x, self.k), matmul(x, self.v)], axis=0), axis=0)
+        return reduce_mean(stack([self.q(x), self.k(x), self.v(x)], axis=0), axis=0)
 
 
 class AttentionLayer(Network):
@@ -54,8 +54,8 @@ class AttentionLayer(Network):
             ],
             axis=1,
         )
-        bs_by_768 = matmul(bs_by_768, self.ff)
-        bs_by_768 = matmul(bs_by_768, self.pos_ff)
-        bs_by_768 = matmul(bs_by_768, self.pos_ff2)
+        bs_by_768 = self.ff(bs_by_768)
+        bs_by_768 = self.pos_ff(bs_by_768)
+        bs_by_768 = self.pos_ff2(bs_by_768)
 
         return bs_by_768
