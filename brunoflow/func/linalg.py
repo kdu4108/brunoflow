@@ -2,6 +2,7 @@
 This module implements autodiff versions of common linear algebra functions.
 """
 
+import jax
 from jax import numpy as jnp
 from .function import make_function
 from .reductions import *
@@ -268,8 +269,8 @@ def matmul_backward(out_val, out_grad, A, B):
 
 
 matmul = make_function(
-    lambda A, B: jnp.matmul(A, B),
-    matmul_backward,
+    jax.jit(lambda A, B: jnp.matmul(A, B)),
+    jax.jit(matmul_backward),
     construct_double_variable_fct_name("matmul"),
 )
 Node.__matmul__ = matmul
