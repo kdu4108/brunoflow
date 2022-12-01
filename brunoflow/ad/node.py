@@ -4,10 +4,12 @@ import graphviz
 
 import numpy as np
 import numpy.typing as npt
+import jax
 from jax import numpy as jnp
 from typing import Any, List, Tuple, Union
 
 import brunoflow as bf
+from brunoflow.ad.utils import abs_val_grad_product_fn, entropy_product_fn
 
 
 class Node:
@@ -251,9 +253,7 @@ class Node:
             self.val,
             dict(out_abs_val_grad=self.abs_val_grad),
             *input_vals,
-            product_fn=(
-                lambda l_adj, out_abs_val_grad_dict: jnp.abs(l_adj) * out_abs_val_grad_dict["out_abs_val_grad"]
-            ),
+            product_fn=abs_val_grad_product_fn,
         )
 
         assert len(input_vals) == len(adjoints_abs_val_grad)
@@ -291,14 +291,7 @@ class Node:
             self.val,
             dict(out_abs_val_grad=self.abs_val_grad, out_entropy=self.entropy_wrt_output),
             *input_vals,
-            product_fn=(
-                lambda l_adj, out_grad_and_entropy_dict: jnp.abs(l_adj) * out_grad_and_entropy_dict["out_entropy"]
-                + jnp.nan_to_num(
-                    -jnp.abs(l_adj) * jnp.log(jnp.abs(l_adj)) * out_grad_and_entropy_dict["out_abs_val_grad"],
-                    copy=False,
-                    nan=0.0,
-                )
-            ),
+            product_fn=entropy_product_fn,
         )  # TODO: this is broken for the inv function, fix that.
 
         assert len(input_vals) == len(adjoints_entropy)
