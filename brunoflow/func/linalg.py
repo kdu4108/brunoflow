@@ -269,8 +269,10 @@ def matmul_backward(out_val, out_grad, A, B):
 
 
 matmul = make_function(
-    jax.jit(lambda A, B: jnp.matmul(A, B)),
-    jax.jit(matmul_backward),
+    lambda A, B: jnp.matmul(A, B),
+    # jax.jit(lambda A, B: jnp.matmul(A, B)),
+    matmul_backward,
+    # jax.jit(matmul_backward),
     construct_double_variable_fct_name("matmul"),
 )
 Node.__matmul__ = matmul
