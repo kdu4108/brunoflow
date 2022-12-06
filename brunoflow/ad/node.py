@@ -1,12 +1,13 @@
 from __future__ import annotations
 from colorama import Style
 import graphviz
-
+import networkx as nx
 import numpy as np
 import numpy.typing as npt
 import jax
 from jax import numpy as jnp
 from typing import Any, List, Tuple, Union
+import uuid
 
 import brunoflow as bf
 from brunoflow.ad.utils import abs_val_grad_product_fn, entropy_product_fn
@@ -72,46 +73,83 @@ class Node:
         self.inputs = inputs
         self.name = name
         self.__num_uses = 0
+        self.id: str = uuid.uuid4().hex
         self.graph = graphviz.Digraph("computation_graph", filename="computation_graph.gv")
+
+    def get_id(self):
+        return self.id
 
     def id(self, next_available_id: int = 0):
         if self.id is None:
             self.id = next_available_id
             next_available_id += 1
 
-        return self.id, next_availble_id
+        return self.id, next_available_id
 
-    def subtree(self, next_available_id: int = 0):
-        nodes, edges = [], []
-
-        current_node, next_available_id = self.id(next_available_id)
-
-        # current_node = next_available_id
-        # next_available_id += 1
-
-        # if current_node not in nodes:
-        nodes.append(current_node)
+    def subtree(self, visited=set()) -> Tuple[List[Node], Tuple[Node, Node]]:
+        """
+        Given a root node, return a list of all nodes in its subtree and all edges that make up the subtree.
+        """
+        nodes: List[Node] = [self]
+        edges: List[Tuple[Node, Node]] = []
+        if self in visited:
+            return [], []
 
         if len(self.inputs) > 0:
             for input_node in self.inputs:
-                edges.append((input_node.id(next_available_id), current_node.id(next_available_id)))
-
                 if isinstance(input_node, Node):
+                    edges.append((input_node, self))
                     # recurse
-                    local_nodes, local_edges, next_available_id = input_node.subtree(next_available_id)
+                    local_nodes, local_edges = input_node.subtree(visited=visited)
                     nodes.extend(local_nodes)
                     edges.extend(local_edges)
-                else:
-                    # create node for numpy array
-                    nodes.append(next_available_id)
-                    next_available_id += 1
+                    visited.add(input_node)
+                # Commenting out this else bit for now because it's annoying to have nparrays show up because of reshape(axis=blah)
+                # else:
+                #     # create node for numpy array
+                #     edges.append((Node(input_node, name="nparray"), self))
+                #     nodes.append(Node(input_node, name="nparray"))
 
-        return nodes, edges, next_available_id
+        return nodes, edges
 
     def visualize(self):
-        # 
-        self.inputs
-        pass
+        import matplotlib.pyplot as plt
+
+        nodes, edges = self.subtree()
+        G = nx.DiGraph(directed=True)
+
+        def get_node_shortname(node):
+            return node.name.split(" ")[0][1:] if node.name.startswith("(") else node.name
+
+        def get_grad(node: Node):
+            return node.grad.round(decimals=4)
+
+        def get_entropy(node: Node):
+            return node.compute_entropy().val.round(decimals=4)
+
+        def get_label_from_pygraph_node(pygraph_node):
+            import re
+
+            node_name = re.split(" |,", pygraph_node.name)[1]
+            operator = node_name[1:] if node_name.startswith("(") else node_name
+            return operator
+
+        def construct_label(node):
+            node_name = get_node_shortname(node)
+            node_grad = get_grad(node)
+            node_entropy = get_entropy(node)
+
+            return f"{node_name}\ngrad: {node_grad}\nentropy: {node_entropy}"
+
+        # G.add_nodes_from(nodes)
+        G.add_nodes_from([(node, {"label": construct_label(node)}) for node in nodes])
+        G.add_edges_from(edges)  # [(n1.get_id(), n2.get_id()) for n1, n2 in edges])
+
+        G = nx.nx_agraph.to_agraph(G)
+        # for i in range(len(G.nodes())):
+        #     G.nodes()[i].attr["label"] = get_label_from_pygraph_node(G.nodes()[i])
+        G.layout(prog="dot")
+        G.draw("graph.png")
 
     def set_name(self, new_name: str):
         self.name = new_name
@@ -508,34 +546,6 @@ class Node:
 
     def compute_entropy(self):
         return Node(self.entropy_wrt_output) / Node(self.abs_val_grad) + bf.func.math.log(self.abs_val_grad)
-
-    def construct_graph(self):
-        # TODO: this simply doesn't work so if I want an actual graph visualizer I should fix this
-        inps = [self]
-        visited = set()
-        curr_node_name = self.name
-        self.graph.node(curr_node_name)
-        while inps:
-            curr_node = inps.pop()
-            curr_node_name = curr_node.name if isinstance(curr_node, Node) else str(curr_node)
-
-            if isinstance(curr_node, Node):
-                for inp in curr_node.inputs:
-                    print(inp)
-                    inp_name = inp.name if isinstance(inp, Node) else str(inp)
-                    inp_label = (
-                        inp_name.split(" ")[0][1:] if isinstance(inp, Node) and inp_name.startswith("(") else inp_name
-                    )
-                    if inp_name not in visited:
-                        self.graph.node(inp_name, label=inp_label)
-                        self.graph.edge(inp_name, curr_node_name)
-                        inps.append(inp)
-                        visited.add(inp_name)
-
-        return self.graph
-
-    def visualize(self):
-        self.graph.render(view=True)
 
 
 def reshape_adjoint(adj, shape):

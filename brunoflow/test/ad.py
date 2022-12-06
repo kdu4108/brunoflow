@@ -593,6 +593,38 @@ class RegularizationTestCase(ut.TestCase):
 
 
 class VisualizeTestCase(ut.TestCase):
+<<<<<<< HEAD
     def test_visualize_node(self):
         pass
 >>>>>>> fcc0443 (WIP visualization code)
+=======
+    def test_visualize_basic_math(self):
+        x_bf = bf.Parameter(4, name="x")
+        y_bf = bf.Parameter(2, name="y")
+        output: Node = x_bf * y_bf + x_bf / y_bf + np.array(6)
+
+        output.visualize()
+
+    def test_visualize_linear_layer(self):
+        x_bf = bf.Parameter(np.array([[3.0]]), name="x")
+
+        linear_bf = bf.net.Linear(1, 2)
+        linear_bf.set_weights(np.array([[-2.0, 1.0]]))
+        linear_bf.set_bias(np.array([0.0, 0.0]))
+
+        output = linear_bf(x_bf)
+        output.visualize()
+
+    def test_visualize_linear_layer_with_loss(self):
+        x_bf = bf.Parameter(np.array([[3.0]]), name="x")
+        y_bf = bf.Parameter(np.array([0]), name="y")
+
+        linear_bf = bf.net.Linear(1, 2)
+        linear_bf.set_weights(np.array([[4.0, 1.0]]))
+        linear_bf.set_bias(np.array([0.0, 0.0]))
+
+        output = linear_bf(x_bf)
+        loss = bf.opt.cross_entropy_loss(output, y_bf)
+        loss.backprop()
+        loss.visualize()
+>>>>>>> cedd8a7 (Add basic visualization of a computation graph and a few examples)
