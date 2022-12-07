@@ -1,7 +1,8 @@
 """
 This module implements common loss functions
 """
-from jax import numpy as jnp
+import jax
+from jax import grad, numpy as jnp
 import scipy.special as ssp
 
 from ..func import math, make_function, pointwise_backward
@@ -160,7 +161,7 @@ def cross_entropy_loss(output, target, reduction="mean"):
     return nll_loss(log_softmax(output, -1), target, reduction)
 
 
-def _cross_entropy_loss(output, target, reduction="mean"):
+def cross_entropy_loss2(output, target, reduction="mean"):
     """
     Compute the cross entropy of logits w.r.t. a target class.
     This is just log softmax followed by the NLL loss.
@@ -196,25 +197,26 @@ def _cross_entropy_loss(output, target, reduction="mean"):
         else:
             raise ValueError(f"Unsupported reduction type: {reduction}")
 
-    return nll_loss(ssp.log_softmax(output, -1), target, reduction)
+    return nll_loss(jax.nn.log_softmax(output, axis=-1), target, reduction)
 
 
-def _cross_entropy_loss_backward(out, logits, target, reduction="mean"):
-    """
-    out - the output of the forward pass
-    logits - the logit input value to the forward pass
-    target - the target input value to the forward pass
-    """
-    m = target.shape[0]
-    probs = ssp.softmax(ad.value(logits), axis=-1)
-    err = probs
-    err[range(m), target] -= 1
-    return err, None, None
+# def _cross_entropy_loss_backward(out, logits, target, reduction="mean"):
+#     """
+#     out - the output of the forward pass
+#     logits - the logit input value to the forward pass
+#     target - the target input value to the forward pass
+#     """
+#     m = target.shape[0]
+#     probs = ssp.softmax(ad.value(logits), axis=-1)
+#     err = probs
+#     err[range(m), target] -= 1
+#     return err, None, None
 
+_cross_entropy_loss_backward = grad(cross_entropy_loss2)
 
 cross_entropy_loss_raw = make_function(
-    forward=_cross_entropy_loss,
-    backward=pointwise_backward(_cross_entropy_loss_backward),
+    forward=cross_entropy_loss2,
+    backward=pointwise_backward(lambda out_val, output, target: (_cross_entropy_loss_backward(output, target), None)),
     name_fct=lambda a, b: f"(cross_entropy_loss {ad.name(a)})",
 )
 
