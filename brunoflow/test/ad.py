@@ -584,20 +584,11 @@ class RegularizationTestCase(ut.TestCase):
         assert regularized.val == 10.5
         regularized.backprop(verbose=True)
 
-<<<<<<< HEAD
         self.assertTrue(jnp.allclose(linear_bf.W.grad, jnp.array([[4.0, 1.0]])))
         self.assertTrue(jnp.allclose(linear_bf.b.grad, jnp.array([[2.0, 0.0]])))
-=======
-        self.assertTrue(np.allclose(linear_bf.W.grad, np.array([[4.0, 1.0]])))
-        self.assertTrue(np.allclose(linear_bf.b.grad, np.array([[2.0, 0.0]])))
 
 
 class VisualizeTestCase(ut.TestCase):
-<<<<<<< HEAD
-    def test_visualize_node(self):
-        pass
->>>>>>> fcc0443 (WIP visualization code)
-=======
     def test_visualize_basic_math(self):
         x_bf = bf.Parameter(4, name="x")
         y_bf = bf.Parameter(2, name="y")
@@ -627,4 +618,3 @@ class VisualizeTestCase(ut.TestCase):
         loss = bf.opt.cross_entropy_loss(output, y_bf)
         loss.backprop()
         loss.visualize()
->>>>>>> cedd8a7 (Add basic visualization of a computation graph and a few examples)
