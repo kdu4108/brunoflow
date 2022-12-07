@@ -112,20 +112,26 @@ class Node:
 
         return nodes, edges
 
-    def visualize(self):
+    def visualize(self, save_path="graph.png", vals_to_include={"grad", "entropy"}):
         import matplotlib.pyplot as plt
 
-        nodes, edges = self.subtree()
+        nodes, edges = self.subtree(visited=set())
         G = nx.DiGraph(directed=True)
 
         def get_node_shortname(node):
             return node.name.split(" ")[0][1:] if node.name.startswith("(") else node.name
 
         def get_grad(node: Node):
-            return node.grad.round(decimals=4)
+            grad = node.grad.copy()
+            if isinstance(grad, np.ndarray) and len(grad.shape) > 1:
+                grad = np.mean(grad, axis=0)
+            return grad.round(decimals=4)
 
         def get_entropy(node: Node):
-            return node.compute_entropy().val.round(decimals=4)
+            entropy = node.compute_entropy().val.copy()
+            # if isinstance(entropy, np.ndarray) and "_w" not in node.name:
+            #     entropy = np.mean(entropy, axis=0)
+            return entropy.round(decimals=4)
 
         def get_label_from_pygraph_node(pygraph_node):
             import re
@@ -134,22 +140,27 @@ class Node:
             operator = node_name[1:] if node_name.startswith("(") else node_name
             return operator
 
-        def construct_label(node):
+        def construct_label(node, vals_to_include={"grad", "entropy"}):
             node_name = get_node_shortname(node)
-            node_grad = get_grad(node)
-            node_entropy = get_entropy(node)
+            label = node_name
+            if "grad" in vals_to_include:
+                node_grad = get_grad(node)
+                label += f"\ngrad: {node_grad}"
+            if "entropy" in vals_to_include:
+                node_entropy = get_entropy(node)
+                label += f"\nentropy: {node_entropy}"
 
-            return f"{node_name}\ngrad: {node_grad}\nentropy: {node_entropy}"
+            return label
 
         # G.add_nodes_from(nodes)
-        G.add_nodes_from([(node, {"label": construct_label(node)}) for node in nodes])
+        G.add_nodes_from([(node, {"label": construct_label(node, vals_to_include=vals_to_include)}) for node in nodes])
         G.add_edges_from(edges)  # [(n1.get_id(), n2.get_id()) for n1, n2 in edges])
 
         G = nx.nx_agraph.to_agraph(G)
         # for i in range(len(G.nodes())):
         #     G.nodes()[i].attr["label"] = get_label_from_pygraph_node(G.nodes()[i])
         G.layout(prog="dot")
-        G.draw("graph.png")
+        G.draw(path=save_path)
 
     def set_name(self, new_name: str):
         self.name = new_name
