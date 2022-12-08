@@ -216,9 +216,16 @@ _cross_entropy_loss_backward = grad(cross_entropy_loss2)
 
 cross_entropy_loss_raw = make_function(
     forward=cross_entropy_loss2,
-    backward=pointwise_backward(lambda out_val, output, target: (_cross_entropy_loss_backward(output, target), None)),
+    backward=pointwise_backward(
+        lambda out_val, output, target, reduction="mean": (
+            _cross_entropy_loss_backward(output, target, reduction),
+            None,
+        )
+    ),  # this reduction keyword has some problems, the backward pass won't work with anything except reduction="mean" right now
     name_fct=lambda a, b: f"(cross_entropy_loss {ad.name(a)})",
 )
+
+# cross_entropy_loss_raw = cross_entropy_loss
 
 
 def regularize(model, l1_weight=0, l2_weight=1):

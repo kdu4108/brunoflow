@@ -48,14 +48,19 @@ def make_function(forward, backward=None, name_fct=None):
             ret = [ret]
         return ret
 
-    def autodiff_function(*args):
+    def autodiff_function(*args, **kwargs):
         """
         The new autodiff function that we have created
         """
+        forward_args = inspect.signature(forward).parameters
+        for kwarg in list(kwargs.keys()):
+            if kwarg not in forward_args:
+                # print(f"WARNING: backward function named {backward.__name__} does not have an argument named {kwarg}. Deleting kwarg.")
+                del kwargs[kwarg]
         # Extract raw values from any Nodes in the argument list
         in_vals = [ad.value(a) for a in args]
         # Apply the forward function
-        out_val = forward(*in_vals)
+        out_val = forward(*in_vals, **kwargs)
         # print("args:", args)
         name = name_fct(*args) if name_fct is not None else None
         # Return a Node which has all the information necessary to perform the backward pass
