@@ -11,6 +11,7 @@ This is correct and easy to do, but it is less efficient than implementing
     computation graph).
 """
 
+import jax
 from jax import numpy as jnp
 from .function import make_function, pointwise_backward
 from . import math
@@ -112,6 +113,18 @@ _leakyrelu = make_function(
     pointwise_backward(leakyrelu_backward),
     construct_single_variable_fct_name("leakyrelu", additional_arg_names=("neg_slope",)),
 )
+
+
+def _gelu_exact(x):
+    return jax.nn.gelu(x, approximate=False)
+
+
+def gelu_exact_backward(out, x):
+    jac = jax.jacfwd(_gelu_exact)(x)
+    return jnp.sum(jac, axis=tuple(range(len(jac.shape) - len(x.shape))))
+
+
+gelu = make_function(_gelu_exact, pointwise_backward(gelu_exact_backward), name_fct=lambda x: "gelu")
 
 
 def softmax(x, axis):

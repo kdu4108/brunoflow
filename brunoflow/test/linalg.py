@@ -83,6 +83,28 @@ class LinalgTestCase(ut.TestCase):
             jnp.allclose(y_bf.compute_entropy().val, jnp.array([[ss.entropy([0.2, 0.8]), ss.entropy([0.2, 0.8])]]))
         )
 
+    def test_einsum_reduces_to_matmul(self):
+        X = jnp.ones(shape=(5, 10))
+        W = jnp.ones(shape=(10, 1))
+        y = jnp.ones(shape=(5, 1))
+        einsum_expr = "ij,jk->ik"
+
+        bf_X = bf.Node(X, name="X")
+        bf_W = bf.Node(W, name="W")
+        logits = bf.einsum(einsum_expr, bf_X, bf_W)
+        loss = bf.opt.mse_loss(logits, y)
+        loss.backprop(values_to_compute=("grad", "abs_val_grad", "entropy"))
+
+        bf_X_mm = bf.Node(X.copy(), name="X_mm")
+        bf_W_mm = bf.Node(W.copy(), name="W_mm")
+        logits = bf.matmul(bf_X_mm, bf_W_mm)
+        loss = bf.opt.mse_loss(logits, y)
+        loss.backprop(values_to_compute=("grad", "abs_val_grad", "entropy"))
+
+        assert jnp.array_equal(bf_X.grad, bf_X_mm.grad)
+        assert jnp.array_equal(bf_X.abs_val_grad, bf_X_mm.abs_val_grad)
+        assert jnp.array_equal(bf_X.entropy_wrt_output, bf_X_mm.entropy_wrt_output)
+
 
 ######################################################
 
@@ -209,6 +231,105 @@ utils.add_tests(
             [(2, 3, 4), (2, 4, 5)],
             [(2, 4, 4), (4, 4)],
             [(3, 4), (2, 4, 5)],
+        ]
+    ),
+)
+
+utils.add_tests(
+    LinalgTestCase,
+    basename="test_einsum_matmul",
+    fn=lambda x, y: bf.einsum("ij,jk->ik", x, y),
+    torch_fn=lambda x, y: torch.einsum("ij,jk->ik", x, y),
+    inputs=utils.random_inputs(
+        [
+            [(4, 4), (4, 4)],
+            [(3, 4), (4, 5)],
+        ]
+    ),
+)
+
+utils.add_tests(
+    LinalgTestCase,
+    basename="test_einsum_matmul",
+    fn=lambda x, y: bf.einsum("ij,jk->ik", x, y),
+    torch_fn=lambda x, y: torch.einsum("ij,jk->ik", x, y),
+    inputs=utils.random_inputs(
+        [
+            [(4, 4), (4, 4)],
+            [(3, 4), (4, 5)],
+        ]
+    ),
+)
+
+utils.add_tests(
+    LinalgTestCase,
+    basename="test_einsum_matmul_broadcasted",
+    fn=lambda x, y: bf.einsum("bij,bjk->bik", x, y),
+    torch_fn=lambda x, y: torch.einsum("bij,bjk->bik", x, y),
+    inputs=utils.random_inputs(
+        [
+            [(2, 4, 4), (2, 4, 4)],
+            [(2, 3, 4), (2, 4, 5)],
+        ]
+    ),
+)
+
+utils.add_tests(
+    LinalgTestCase,
+    basename="test_einsum_matmul_semi_broadcasted1",
+    fn=lambda x, y: bf.einsum("bij,jk->bik", x, y),
+    torch_fn=lambda x, y: torch.einsum("bij,jk->bik", x, y),
+    inputs=utils.random_inputs(
+        [
+            [(2, 4, 4), (4, 4)],
+        ]
+    ),
+)
+
+utils.add_tests(
+    LinalgTestCase,
+    basename="test_einsum_matmul_semi_broadcasted2",
+    fn=lambda x, y: bf.einsum("ij,bjk->bik", x, y),
+    torch_fn=lambda x, y: torch.einsum("ij,bjk->bik", x, y),
+    inputs=utils.random_inputs(
+        [
+            [(3, 4), (2, 4, 5)],
+        ]
+    ),
+)
+
+utils.add_tests(
+    LinalgTestCase,
+    basename="test_einsum_reduce_to_i",
+    fn=lambda x, y: bf.einsum("ij,jk->i", x, y),
+    torch_fn=lambda x, y: torch.einsum("ij,jk->i", x, y),
+    inputs=utils.random_inputs(
+        [
+            [(5, 10), (10, 2)],
+        ]
+    ),
+)
+
+utils.add_tests(
+    LinalgTestCase,
+    basename="test_einsum_ijk_jkll_ikl",
+    fn=lambda x, y: bf.einsum("ijk,jkll->ikl", x, y),
+    torch_fn=lambda x, y: torch.einsum("ijk,jkll->ikl", x, y),
+    inputs=utils.random_inputs(
+        [
+            [(5, 10, 2), (10, 2, 3, 3)],
+        ]
+    ),
+)
+
+utils.add_tests(
+    LinalgTestCase,
+    basename="test_einsum_used_in_bert",
+    fn=lambda x, y: bf.einsum("bhld,lrd->bhlr", x, y),
+    torch_fn=lambda x, y: torch.einsum("bhld,lrd->bhlr", x, y),
+    inputs=utils.random_inputs(
+        [
+            [(3, 2, 1, 7), (1, 9, 7)],
         ]
     ),
 )

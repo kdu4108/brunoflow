@@ -275,3 +275,61 @@ matmul = make_function(
 )
 Node.__matmul__ = matmul
 Node.__rmatmul__ = lambda A, B: Node.__mul__(B, A)
+
+
+def _einsum_forward(subscripts: str, arr1, arr2):
+    """Function to compute the einsum of two tensors of arbitrary shape."""
+    return jnp.einsum(subscripts, arr1, arr2)
+
+
+def _einsum_backward(out_val, out_grad, subscripts: str, A, B):
+    def reorder_subscripts(subscripts):
+        import re
+
+        components = re.split(r",|->", subscripts.replace(" ", ""))
+        subscripts_for_each_derivative = []
+        for i in range(len(components) - 1):
+            dout_di_subscripts_order = list(components)
+            dout_di_subscripts_order[i], dout_di_subscripts_order[-1] = (
+                dout_di_subscripts_order[-1],
+                dout_di_subscripts_order[i],
+            )
+            subscripts_for_each_derivative.append(
+                f"{dout_di_subscripts_order[0]},{dout_di_subscripts_order[1]}->{dout_di_subscripts_order[2]}"
+            )
+        return tuple(subscripts_for_each_derivative)
+
+    A_deriv_subscripts, B_deriv_subscripts = reorder_subscripts(subscripts)
+    A_factor = jnp.copy(A)
+    B_factor = jnp.copy(B)
+    if isinstance(out_grad, dict) and "out_entropy" in out_grad:
+        out_entropy = out_grad["out_entropy"]
+        out_abs_val_grad = out_grad["out_abs_val_grad"]
+        A_factor = jnp.abs(A_factor)
+        B_factor = jnp.abs(B_factor)
+
+        return (
+            None,
+            jnp.einsum(A_deriv_subscripts, out_entropy, B_factor)
+            + jnp.einsum(A_deriv_subscripts, out_abs_val_grad, -B_factor * jnp.log(B_factor)),
+            jnp.einsum(B_deriv_subscripts, A_factor, out_entropy)
+            + jnp.einsum(B_deriv_subscripts, -A_factor * jnp.log(A_factor), out_abs_val_grad),
+        )
+
+    elif isinstance(out_grad, dict):
+        out_grad = out_grad["out_abs_val_grad"]
+        A_factor = jnp.abs(A_factor)
+        B_factor = jnp.abs(B_factor)
+
+    return None, jnp.einsum(A_deriv_subscripts, out_grad, B_factor), jnp.einsum(B_deriv_subscripts, A_factor, out_grad)
+
+    # jac_A, jac_B = jax.jacfwd(_einsum_forward, argnums=(1, 2))(subscripts, A, B)
+
+    # # local derivatives for A and B
+    # A_grad = jnp.sum(jac_A, axis=tuple(range(len(jac_A.shape) - len(A.shape))))
+    # B_grad = jnp.sum(jac_B, axis=tuple(range(len(jac_B.shape) - len(B.shape))))
+
+    # return None, A_grad, B_grad
+
+
+einsum = make_function(_einsum_forward, _einsum_backward, lambda subscripts, A, B: "einsum")

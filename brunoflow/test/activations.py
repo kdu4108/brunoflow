@@ -49,6 +49,14 @@ utils.add_tests(
 
 utils.add_tests(
     ActivationsTestCase,
+    basename="test_gelu",
+    fn=lambda x: bf.gelu(x),
+    torch_fn=lambda x: torch.nn.functional.gelu(x),
+    inputs=utils.random_inputs(input_shapes),
+)
+
+utils.add_tests(
+    ActivationsTestCase,
     basename="test_log_softmax",
     fn=lambda x: bf.log_softmax(x, axis=-1),
     torch_fn=lambda x: torch.nn.functional.log_softmax(x, dim=-1),
