@@ -1,7 +1,7 @@
 """
 This module defines functions that perform tensor reductions
 """
-
+import jax
 from jax import numpy as jnp
 from brunoflow.ad import name
 from brunoflow.func.utils import construct_single_variable_fct_name, custom_put_along_axis, get_relevant_out_grad_val
@@ -104,7 +104,7 @@ _reduce_max = make_function(
 )
 
 
-def reduce_sum(x, axis=None):
+def reduce_sum(x, axis=None, keepdims=None):
     """
     Compute the sum of values in a tensor (overall, or along some axis)
 
@@ -121,31 +121,48 @@ def reduce_sum(x, axis=None):
 
     PyTorch equivalent: torch.sum
     """
-    return _reduce_sum(x, axis)
+    return _reduce_sum(x, axis, keepdims)
 
 
-def reduce_sum_backward(out_val, out_grad, x, axis=None):
+def reduce_sum_backward(out_val, out_grad, x, axis=None, keepdims=None):
     # In this function, the value of out_grad represents the upstream accumulated value for a semiring.
     #  So, out_grad may be an int representing the accumulated semiring value (e.g. gradient)
     #  or, if the semiring is more complicated, a dict containing the components of the accumulated
     #  semiring value (e.g. the abs_val_grad and entropy).
     # Extract the appropriate value for the semiring.
+
+    # TODO: verify whether this...actually works?
     out_grad = get_relevant_out_grad_val(out_grad)
-    if axis is None:
-        return jnp.full(x.shape, out_grad), None
-    else:
-        stacks = [out_grad for i in range(x.shape[axis])]
-        return jnp.stack(stacks, axis), None
+    if not keepdims:
+        out_grad = jnp.expand_dims(out_grad, axis if axis is not None else list(range(len(x))))
+    jac = jax.jacfwd(jnp.sum)(x, axis=axis, keepdims=True)
+    return (
+        out_grad * jnp.sum(jac, axis=tuple(range(len(jac.shape) - len(x.shape)))),
+        None,
+        None,
+    )
+    # if axis is None:
+    #     return jnp.full(x.shape, out_grad), None, None
+    # else:
+    #     if isinstance(axis, int):
+    #         axis = (axis,)
+    #     res = out_grad if not keepdims else out_grad[axis]
+    #     for ax in axis:
+    #         res = jnp.stack([res for _ in range(x.shape[ax])], axis=ax)
+    #     return res, None, None
+
+    #     # stacks = [out_grad for i in range(x.shape[axis])]
+    #     # return jnp.stack(stacks, axis), None
 
 
 _reduce_sum = make_function(
-    lambda x, axis: jnp.sum(x, axis=axis),
+    lambda x, axis, keepdims: jnp.sum(x, axis=axis, keepdims=keepdims),
     reduce_sum_backward,
-    construct_single_variable_fct_name("sum", additional_arg_names=("axis",)),
+    construct_single_variable_fct_name("sum", additional_arg_names=("axis", "keepdims")),
 )
 
 
-def reduce_mean(x, axis=None):
+def reduce_mean(x, axis=None, keepdims=None):
     """
     Compute the mean of values in a tensor (overall, or along some axis)
 
@@ -162,8 +179,14 @@ def reduce_mean(x, axis=None):
 
     PyTorch equivalent: torch.mean
     """
-    n = x.size if axis is None else x.shape[axis]
-    return reduce_sum(x, axis) / n
+    if axis is None:
+        n = x.size
+    elif isinstance(axis, int):
+        n = x.shape[axis]
+    elif isinstance(axis, tuple):
+        n = jnp.product(jnp.array([x.shape[ax] for ax in axis]))
+
+    return reduce_sum(x, axis, keepdims=keepdims) / n
 
 
 def reduce_var(x, axis=None):

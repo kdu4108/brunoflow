@@ -16,6 +16,7 @@ PyTorch analogue:
 
 from .function import *
 from .activations import *
+from .layers import *
 from .linalg import *
 from .math import *
 from .operators import *

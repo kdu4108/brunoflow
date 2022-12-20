@@ -6,5 +6,8 @@ A network is an object that associates an autodiff function with some set of tra
 """
 
 from .network import *
+from .dropout import *
+from .embedding import *
+from .layernorm import *
 from .linear import *
 from .mlp import *

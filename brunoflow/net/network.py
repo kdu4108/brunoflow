@@ -3,7 +3,9 @@ This module contains code for defining new neural networks and their trainable p
 """
 
 from ..ad import Node
+from collections import OrderedDict
 from collections.abc import Iterable
+from typing import Dict, Optional
 
 
 class Parameter(Node):
@@ -29,6 +31,9 @@ class Network:
 
     PyTorch analogue: torch.nn.Module
     """
+
+    def __init__(self):
+        self._modules: Dict[str, Optional[Network]] = OrderedDict()
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
