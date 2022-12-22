@@ -1,0 +1,44 @@
+1. TODO(KD): Modify src/transformers/modeling_bf_utils.py to load a brunoflow modeling_bf_utils
+    - Implement _load_state_dict_into_model(model_to_load: bf.Net, state_dict: OrderedDict[str, torch.Tensor], start_prefix) to work for BF
+2. TODO(KD): Add loading/saving capabilities to brunoflow so you can load a pytorch state_dict into a bf.Net
+    - Implement function state_dict() for all bf.Net objects (context - /home/kevin/miniconda3/envs/jax/lib/python3.9/site-packages/transformers/modeling_utils.py, PreTrainedModel._load_pretrained_model)
+    - Implement _load_from_state_dict for all bf.Net objects (context - /home/kevin/miniconda3/envs/jax/lib/python3.9/site-packages/transformers/modeling_utils.py, PreTrainedModel._load_state_dict_into_model)
+        - Implement copy_ for all bf Node objects (context - /home/kevin/miniconda3/envs/jax/lib/python3.9/site-packages/torch/nn/modules/module.py, line 1507 in _load_from_state_dict (`param.copy_(input_param)`))
+    - Implement bf.functional.pad (context: modeling_utils.PreTrainedModel._tie_or_clone_weights)
+3. Implement BFBertForMaskedLM
+    - Implement BertForMaskedLM
+        - Implement BFBertModel (the base, this is used a variety of ways but for example get_input_embeddings())
+            - Implement BFBertEmbeddings
+                - Implement bf.Net.Embedding (Done, not tested)
+                    - see https://discuss.pytorch.org/t/what-is-the-exactly-implementation-of-torch-embedding/87166 for help on
+                - Implement LayerNorm (Done, not tested)
+                - Implement bf.Module.register_buffer # I think we can just do like a self.position_ids = ?
+            - Implement BFBertEncoder
+                - Implement BFBertLayer
+                    - Implement BFBertAttention
+                        - Implement BFBertSelfAttention
+                            - implement view (can we just use reshape?)
+                            - implement permute (done! yay dritchie :D)
+                            - implement einsum (done-ish - it's buggy, but unit tested that it works for the code snippet we need in bert impl)
+                            - implement Dropout (done, not tested)
+                        - Implement BFBertSelfOutput
+                    - Implement BertIntermediate
+                        - Implement hidden_act = gelu (done!)
+                    - Implement BertOutput
+                    - maybe implement apply_chunking_to_forward?
+                - Implement bf.Net.ModuleList?
+                    - Modify bf.Net to include modules as children?
+            - Implement BFBertPooler
+            - Implement ModuleUtilsMixin.get_extended_attention_mask
+            - Implement ModuleUtilsMixin.invert_attention_mask
+            - Maybe implement ModuleUtilsMixin.get_head_mask?
+        - Implement get_output_embeddings()? (context - PreTrainedModel.tie_weights()?)
+        - Implement BFBertOnlyMLMHead
+            - Implement BertLMPredictionHead
+                - Implement BertPredictionHeadTransform
+
+    - Implement BFBertPreTrainedModel
+        - import BertConfig?
+4. Create modeling_bf_outputs.py
+    - import ModelOutput
+    - override/create new BaseModelOutputWithPastAndCrossAttentions
