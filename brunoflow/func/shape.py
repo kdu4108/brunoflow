@@ -10,6 +10,7 @@ from brunoflow.func.utils import (
     get_relevant_out_grad_val,
     typecast_index_arg_for_jax,
 )
+from typing import Optional
 from .function import make_function
 from ..ad import Node, name
 
@@ -267,7 +268,7 @@ Node.__getitem__ = make_function(
 )
 
 
-def _get_embedding_forward(x, arg, padding_idx):
+def _get_embedding_forward(x: Node, arg: Node, padding_idx: int):
     return x[typecast_index_arg_for_jax(arg)]
 
 
@@ -280,7 +281,9 @@ def _get_embedding_backward(out_val, out_grad, x, arg, padding_idx):
     grad = grad.at[typecast_index_arg_for_jax(arg)].set(out_grad)
     if padding_idx is not None:
         grad = grad.at[padding_idx].set(0.0)
-    return grad, None, None
+
+    # return 0s for arg because it may sometimes be a Node (e.g. when loading position_ids in BfBertEmbedding) and we need to pass it some sort of grad back.
+    return grad, jnp.zeros_like(arg), None
 
 
 __get_embedding = make_function(
@@ -290,7 +293,7 @@ __get_embedding = make_function(
 )
 
 
-def get_embedding(x, arg, padding_idx=None):
+def get_embedding(x: Node, arg: Node, padding_idx: Optional[int] = None):
     """
     Gets the `arg` indices from x while always ensuring that the gradient at the `padding_idx`-th row is 0.
     This is basically getitem but useful for embeddings because of the enforced 0-ing of grad for padding_idx.
