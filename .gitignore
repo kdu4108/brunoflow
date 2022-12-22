@@ -164,4 +164,3 @@ cython_debug/
 # Torch data objects
 *.bin
 *.pt
-*.json
