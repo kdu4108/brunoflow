@@ -10,6 +10,8 @@ from typing import List, Optional, Union
 
 
 class LayerNorm(Network):
+    typename = "LayerNorm"
+
     def __init__(
         self, normalized_shape: Union[int, List[int]], eps: float = 1e-5, elementwise_affine: bool = True
     ) -> None:

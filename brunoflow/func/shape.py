@@ -267,6 +267,38 @@ Node.__getitem__ = make_function(
 )
 
 
+def _get_embedding_forward(x, arg, padding_idx):
+    return x[typecast_index_arg_for_jax(arg)]
+
+
+def _get_embedding_backward(out_val, out_grad, x, arg, padding_idx):
+    out_grad = get_relevant_out_grad_val(out_grad)
+    grad = jnp.zeros_like(x)
+    # Need to cast list to array because otherwise:
+    # `TypeError: Using a non-tuple sequence for multidimensional indexing is not allowed; use `arr[array(seq)]` instead of `arr[seq]`.
+    #   See https://github.com/google/jax/issues/4564 for more information.`
+    grad = grad.at[typecast_index_arg_for_jax(arg)].set(out_grad)
+    if padding_idx is not None:
+        grad = grad.at[padding_idx].set(0.0)
+    return grad, None, None
+
+
+__get_embedding = make_function(
+    _get_embedding_forward,
+    _get_embedding_backward,
+    lambda x, arg, padding_idx: "get_embedding",
+)
+
+
+def get_embedding(x, arg, padding_idx=None):
+    """
+    Gets the `arg` indices from x while always ensuring that the gradient at the `padding_idx`-th row is 0.
+    This is basically getitem but useful for embeddings because of the enforced 0-ing of grad for padding_idx.
+    """
+
+    return __get_embedding(x, arg, padding_idx)
+
+
 def split(x, indices_or_sections, axis):
     """
     Split a tensor into multiple sub-tensors

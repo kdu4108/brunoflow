@@ -14,7 +14,11 @@ def xavier1(n):
 
 
 class Linear(Network):
+
+    typename = "Linear"
+
     def __init__(self, input_size, output_size, random_key_val=42, name="linear"):
+        super(Linear, self).__init__()
         random_key = random.PRNGKey(random_key_val)
         # Subkeys are destined for immediate consumption by random functions, while the key is retained to generate more randomness later.
         # See https://jax.readthedocs.io/en/latest/jax-101/05-random-numbers.html for more info on JAX + random numbers

@@ -4,7 +4,10 @@ from brunoflow.func.activations import leakyrelu
 
 
 class MLP(Network):
+    typename = "MLP"
+
     def __init__(self, input_size=784, hidden_size=500, num_classes=10):
+        super(MLP, self).__init__()
         self.ff1 = Linear(input_size, hidden_size, name="ff1")
         self.ff2 = Linear(hidden_size, num_classes, name="ff2")
 

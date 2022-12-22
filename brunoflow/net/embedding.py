@@ -2,15 +2,16 @@ from jax import numpy as jnp
 from jax import random
 from .network import Network, Parameter
 from ..ad import Node
-from brunoflow.func.activations import leakyrelu
+from brunoflow.func.shape import get_embedding
 from typing import Optional
 
 
 class Embedding(Network):
     """
     Implementation of an Embedding Layer. It's missing a lot of functionality (including no special zeroing-out gradients of padding_idx)
-    TODO(kdu): somehow ensure gradient of pad idx is 0.
     """
+
+    typename = "Embedding"
 
     def __init__(
         self,
@@ -27,6 +28,8 @@ class Embedding(Network):
         dtype=None,
         random_key_val=42,
     ) -> None:
+        super(Embedding, self).__init__()
+
         random_key = random.PRNGKey(random_key_val)
 
         self.num_embeddings = num_embeddings
@@ -35,7 +38,7 @@ class Embedding(Network):
         self.name = f"Embedding Layer ({self.num_embeddings}, {self.embedding_dim})"
         embedding_weights_name = f"emb weights ({self.num_embeddings}, {self.embedding_dim})"
         if _weight is None:
-            self.embeddings = Parameter(
+            self.weight = Parameter(
                 random.normal(key=random_key, shape=(num_embeddings, embedding_dim)), name=embedding_weights_name
             )
             self._fill_padding_idx_with_zero()
@@ -44,14 +47,28 @@ class Embedding(Network):
                 num_embeddings,
                 embedding_dim,
             ], "Shape of weight does not match num_embeddings and embedding_dim"
-            self.embeddings = Parameter(_weight, name=embedding_weights_name)
+            self.weight = Parameter(_weight, name=embedding_weights_name)
 
     def _fill_padding_idx_with_zero(self) -> None:
         if self.padding_idx is not None:
-            self.embeddings.val = self.embeddings.val.at[self.padding_idx].set(0)
+            self.weight.val = self.weight.val.at[self.padding_idx].set(0)
 
-    def forward(self, indices: jnp.ndarray):
-        return self.embeddings[indices]
+    def forward(self, indices: jnp.ndarray) -> Node:
+        return get_embedding(x=self.weight, arg=indices, padding_idx=self.padding_idx)
+
+    def extra_repr(self) -> str:
+        s = "{num_embeddings}, {embedding_dim}"
+        if self.padding_idx is not None:
+            s += ", padding_idx={padding_idx}"
+        # if self.max_norm is not None:
+        #     s += ', max_norm={max_norm}'
+        # if self.norm_type != 2:
+        #     s += ', norm_type={norm_type}'
+        # if self.scale_grad_by_freq is not False:
+        #     s += ', scale_grad_by_freq={scale_grad_by_freq}'
+        # if self.sparse is not False:
+        #     s += ', sparse=True'
+        return s.format(**self.__dict__)
 
     @classmethod
     def from_pretrained(

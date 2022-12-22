@@ -4,10 +4,10 @@ import torch
 
 model = BertForMaskedLM.from_pretrained("bert-base-uncased")
 tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
-text = "hello I want to eat some [MASK] meat today. It's thanksgiving [MASK] all!"
+text = ["hello I want to eat some [MASK] meat today. It's thanksgiving [MASK] all!", "yo yo what's up"]
 
 # tokenize text and pass into model
-tokens = tokenizer(text, return_tensors="pt")
+tokens = tokenizer(text, return_tensors="pt", padding=True)
 input_ids = tokens["input_ids"]
 token_logits = model(input_ids).logits
 

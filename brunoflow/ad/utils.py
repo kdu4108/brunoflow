@@ -1,5 +1,6 @@
 import jax
 from jax import numpy as jnp
+from torch import Tensor
 
 
 @jax.jit
@@ -14,3 +15,7 @@ def entropy_product_fn(l_adj, out_grad_and_entropy_dict):
         copy=False,
         nan=0.0,
     )
+
+
+def check_node_equals_tensor(node, tensor: Tensor):
+    return jnp.array_equal(node.val, tensor.detach().numpy())

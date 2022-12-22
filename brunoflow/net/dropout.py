@@ -42,6 +42,7 @@ class Dropout(Network):
     .. _Improving neural networks by preventing co-adaptation of feature
         detectors: https://arxiv.org/abs/1207.0580
     """
+    typename = "Dropout"
 
     def __init__(
         self,
