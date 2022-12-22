@@ -5,6 +5,15 @@ from typing import Union
 from ..ad import Node
 
 
+class _IncompatibleKeys(namedtuple("IncompatibleKeys", ["missing_keys", "unexpected_keys"])):
+    def __repr__(self):
+        if not self.missing_keys and not self.unexpected_keys:
+            return "<All keys matched successfully>"
+        return super(_IncompatibleKeys, self).__repr__()
+
+    __str__ = __repr__
+
+
 def _addindent(s_, numSpaces):
     s = s_.split("\n")
     # don't do anything for single-line stuff

@@ -56,3 +56,6 @@ class Dropout(Network):
 
     def forward(self, x: Node) -> Node:
         return dropout(x, p=self.p, training=self.training)
+
+    def extra_repr(self) -> str:
+        return "p={}".format(self.p)

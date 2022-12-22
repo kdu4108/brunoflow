@@ -76,6 +76,20 @@ class Node:
         self.id: str = uuid.uuid4().hex
         self.graph = graphviz.Digraph("computation_graph", filename="computation_graph.gv")
 
+    def copy_(self, new_node: Node):
+        if not isinstance(new_node, Node):
+            raise ValueError(
+                f"ERROR: {self}.copy_ expects new_node to be of type bf.Node, instead received object of type {type(value)}"
+            )
+
+        value = new_node.val
+        if not isinstance(value, jnp.ndarray):
+            print(
+                f"WARNING: {self}.copy_ expects value of new_nodes to be of type jnp.ndarray, instead received object of type {type(value)}"
+            )
+
+        self.val = value
+
     def get_id(self):
         return self.id
 

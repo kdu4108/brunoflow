@@ -19,3 +19,7 @@ def entropy_product_fn(l_adj, out_grad_and_entropy_dict):
 
 def check_node_equals_tensor(node, tensor: Tensor):
     return jnp.array_equal(node.val, tensor.detach().numpy())
+
+
+def check_node_allclose_tensor(node, tensor: Tensor):
+    return jnp.allclose(node.val, tensor.detach().numpy())

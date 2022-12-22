@@ -54,3 +54,6 @@ class LayerNorm(Network):
             x_norm = self.weight * x_norm + self.bias
 
         return x_norm
+
+    def extra_repr(self) -> str:
+        return "{normalized_shape}, eps={eps}, " "elementwise_affine={elementwise_affine}".format(**self.__dict__)

@@ -3,7 +3,7 @@ This module contains code for defining new neural networks and their trainable p
 """
 
 from ..ad import Node
-from .utils import _addindent, make_into_bf_node
+from .utils import _addindent, make_into_bf_node, _IncompatibleKeys
 from collections import OrderedDict
 from collections.abc import Iterable
 from jax import numpy as jnp
@@ -21,20 +21,6 @@ class Parameter(Node):
 
     def __init__(self, value, name=None):
         super(Parameter, self).__init__(value, name=name)
-
-    def copy_(self, new_node: Node):
-        if not isinstance(new_node, Node):
-            raise ValueError(
-                f"ERROR: {self}.copy_ expects new_node to be of type bf.Node, instead received object of type {type(value)}"
-            )
-
-        value = new_node.val
-        if not isinstance(value, jnp.ndarray):
-            print(
-                f"WARNING: {self}.copy_ expects value of new_nodes to be of type jnp.ndarray, instead received object of type {type(value)}"
-            )
-
-        self.val = value
 
 
 class Network:
@@ -545,14 +531,14 @@ class Network:
                 #     continue
                 try:
                     # param is the local state, input_param is the new value we want to set it to.
-                    input_param: jnp.ndarray = make_into_bf_node(input_param)
+                    input_param: Node = make_into_bf_node(input_param)
                     param.copy_(input_param)
                 except Exception as ex:
                     error_msgs.append(
                         'While copying the parameter named "{}", '
                         "whose dimensions in the model are {} and "
                         "whose dimensions in the checkpoint are {}, "
-                        "an exception occurred : {}.".format(key, param.size(), input_param.size(), ex.args)
+                        "an exception occurred : {}.".format(key, param.shape, input_param.shape, ex.args)
                     )
             elif strict:
                 missing_keys.append(key)
