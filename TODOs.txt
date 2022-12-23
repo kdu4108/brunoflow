@@ -8,23 +8,47 @@
 3. Implement BFBertForMaskedLM
     - Implement BertForMaskedLM
         - Implement BFBertModel (the base, this is used a variety of ways but for example get_input_embeddings())
-            - Implement BFBertEmbeddings
-                - Implement bf.Net.Embedding (Done, not tested)
+          Inputs: input_ids: Tensor[shape=(bs, seq_len)] (e.g. shape=(2, 19))
+            - Implement BFBertEmbeddings (Done! pseudo-tested load_state_dict, forward pass, and backward pass in transformers/playgrounds/bertembeddings_playground.ipynb)
+                - Implement bf.Net.Embedding (Done, pseudo-tested in emb_playground.ipynb)
                     - see https://discuss.pytorch.org/t/what-is-the-exactly-implementation-of-torch-embedding/87166 for help on
                 - Implement LayerNorm (Done, not tested)
                 - Implement bf.Module.register_buffer # I think we can just do like a self.position_ids = ?
             - Implement BFBertEncoder
+              Inputs:
+               embedding_output=Tensor[shape=(bs, seq_len, hs)] (e.g. shape=(2, 19, 768))
+               attention_mask=Tensor[shape=(bs, 1, 1, seq_len)] (e.g. shape=(2, 1, 1, 19)) - all values are 0
+               head_mask = [None] * 12
                 - Implement BFBertLayer
+                  Inputs:
+                   hidden_states=Tensor[shape=(bs, seq_len, hs)] (e.g. shape=(2, 19, 768))
+                   attention_mask=Tensor[shape=(bs, 1, 1, seq_len)] (e.g. shape=(2, 1, 1, 19)) - all values are 0
                     - Implement BFBertAttention
-                        - Implement BFBertSelfAttention
+                      Inputs:
+                      hidden_states=Tensor[shape=(bs, seq_len, hs)] (e.g. shape=(2, 19, 768))
+                      attention_mask=Tensor[shape=(bs, 1, 1, seq_len)] (e.g. shape=(2, 1, 1, 19)) - all values are 0
+                        - Implement BFBertSelfAttention (done, pseudo-tested in bertselfattention_playground.ipynb)
+                          Inputs:
+                          hidden_states=Tensor[shape=(bs, seq_len, hs)] (e.g. shape=(2, 19, 768))
+                          attention_mask=Tensor[shape=(bs, 1, 1, seq_len)] (e.g. shape=(2, 1, 1, 19)) - all values are 0
                             - implement view (can we just use reshape?)
                             - implement permute (done! yay dritchie :D)
                             - implement einsum (done-ish - it's buggy, but unit tested that it works for the code snippet we need in bert impl)
                             - implement Dropout (done, not tested)
                         - Implement BFBertSelfOutput
+                          Inputs:
+                          hidden_states=Tensor[shape=(bs, seq_len, hs)] (e.g. shape=(2, 19, 768))
+                          input_tensor=Tensor[shape=(bs, seq_len, hs)] (e.g. shape=(2, 19, 768))
                     - Implement BertIntermediate
+                      Inputs:
+                      hidden_states=Tensor[shape=(bs, seq_len, hs)] (e.g. shape=(2, 19, 768))
+                      Outputs: shape=(bs, seq_len, intermediate_size=3072)
                         - Implement hidden_act = gelu (done!)
                     - Implement BertOutput
+                      Inputs:
+                      hidden_states=Tensor[shape=(bs, seq_len, intermediate_size)] (e.g. shape=(2, 19, 3072))
+                      input_tensor=Tensor[shape=(bs, seq_len, hs)] (e.g. shape=(2, 19, 768))
+                      Outputs: shape=(bs, seq_len, hs=768)
                     - maybe implement apply_chunking_to_forward?
                 - Implement bf.Net.ModuleList?
                     - Modify bf.Net to include modules as children?
@@ -42,3 +66,4 @@
 4. Create modeling_bf_outputs.py
     - import ModelOutput
     - override/create new BaseModelOutputWithPastAndCrossAttentions
+      Inputs: last_hidden_state=Tensor[shape=(bs, seq_len, hs)] (e.g. shape=(2, 19, 768))

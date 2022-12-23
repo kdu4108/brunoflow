@@ -266,7 +266,7 @@ class AutodiffMaxGradTestCase(ut.TestCase):
         y_bf = bf.Parameter(jnp.array([0]), name="y")
 
         linear_bf = bf.net.Linear(1, 2)
-        linear_bf.set_weights(jnp.array([[4.0, 1.0]]))
+        linear_bf.set_weights(jnp.array([[4.0, 1.0]]).T)
         linear_bf.set_bias(jnp.array([0.0, 0.0]))
 
         output = linear_bf(x_bf)
@@ -289,9 +289,9 @@ class AutodiffMaxGradTestCase(ut.TestCase):
         print("x max neg grad:", x_bf.max_neg_grad_of_output_wrt_node)
         print("x grad:", x_bf.grad)
 
-        print("w max grad:", linear_bf.W.max_grad_of_output_wrt_node)
-        print("w max neg grad:", linear_bf.W.max_neg_grad_of_output_wrt_node)
-        print("w grad:", linear_bf.W.grad)
+        print("w max grad:", linear_bf.weight.max_grad_of_output_wrt_node)
+        print("w max neg grad:", linear_bf.weight.max_neg_grad_of_output_wrt_node)
+        print("w grad:", linear_bf.weight.grad)
 
 
 class AutodiffEntropyTestCase(ut.TestCase):
@@ -464,7 +464,7 @@ class AutodiffEntropyTestCase(ut.TestCase):
         x_bf = bf.Parameter(jnp.array([[3.0]]), name="x")
 
         linear_bf = bf.net.Linear(1, 2)
-        linear_bf.set_weights(jnp.array([[2.0, 1.0]]))
+        linear_bf.set_weights(jnp.array([[2.0, 1.0]]).T)
         linear_bf.set_bias(jnp.array([0.0, 0.0]))
 
         output = linear_bf(x_bf)
@@ -477,7 +477,7 @@ class AutodiffEntropyTestCase(ut.TestCase):
         x_bf = bf.Parameter(jnp.array([[3.0]]), name="x")
 
         linear_bf = bf.net.Linear(1, 2)
-        linear_bf.set_weights(jnp.array([[-2.0, 1.0]]))
+        linear_bf.set_weights(jnp.array([[-2.0, 1.0]]).T)
         linear_bf.set_bias(jnp.array([0.0, 0.0]))
 
         output = linear_bf(x_bf)
@@ -490,7 +490,7 @@ class AutodiffEntropyTestCase(ut.TestCase):
         x_bf = bf.Parameter(jnp.array([[3.0]]), name="x")
 
         linear_bf = bf.net.Linear(1, 2)
-        linear_bf.set_weights(jnp.array([[-2.0, 1.0]]))
+        linear_bf.set_weights(jnp.array([[-2.0, 1.0]]).T)
         linear_bf.set_bias(jnp.array([4.0, 5.0]))
 
         output = linear_bf(x_bf)
@@ -550,7 +550,7 @@ class RegularizationTestCase(ut.TestCase):
     ########################
     def test_l1_regularization(self):
         linear_bf = bf.net.Linear(1, 2)
-        linear_bf.set_weights(jnp.array([[4.0, 1.0]]))
+        linear_bf.set_weights(jnp.array([[4.0, 1.0]]).T)
         linear_bf.set_bias(jnp.array([2.0, 0.0]))
 
         regularized = regularize(linear_bf, l1_weight=1, l2_weight=0)
@@ -558,12 +558,12 @@ class RegularizationTestCase(ut.TestCase):
         assert regularized.val == 7.0
         regularized.backprop(verbose=True)
 
-        self.assertTrue(jnp.allclose(linear_bf.W.grad, jnp.array([[1.0, 1.0]])))
-        self.assertTrue(jnp.allclose(linear_bf.b.grad, jnp.array([[1.0, 1.0]])))
+        self.assertTrue(jnp.allclose(linear_bf.weight.grad, jnp.array([[1.0, 1.0]])).T)
+        self.assertTrue(jnp.allclose(linear_bf.bias.grad, jnp.array([[1.0, 1.0]])))
 
     def test_l2_regularization(self):
         linear_bf = bf.net.Linear(1, 2)
-        linear_bf.set_weights(jnp.array([[4.0, 1.0]]))
+        linear_bf.set_weights(jnp.array([[4.0, 1.0]]).T)
         linear_bf.set_bias(jnp.array([2.0, 0.0]))
 
         regularized = regularize(linear_bf, l1_weight=0, l2_weight=1)
@@ -571,12 +571,12 @@ class RegularizationTestCase(ut.TestCase):
         assert regularized.val == 21.0
         regularized.backprop(verbose=True, values_to_compute=["grad", "abs_val_grad", "entropy"])
 
-        self.assertTrue(jnp.allclose(linear_bf.W.grad, jnp.array([[8.0, 2.0]])))
-        self.assertTrue(jnp.allclose(linear_bf.b.grad, jnp.array([[4.0, 0.0]])))
+        self.assertTrue(jnp.allclose(linear_bf.weight.grad, jnp.array([[8.0, 2.0]]).T))
+        self.assertTrue(jnp.allclose(linear_bf.bias.grad, jnp.array([[4.0, 0.0]])))
 
     def test_l2_half_weighted_regularization(self):
         linear_bf = bf.net.Linear(1, 2)
-        linear_bf.set_weights(jnp.array([[4.0, 1.0]]))
+        linear_bf.set_weights(jnp.array([[4.0, 1.0]]).T)
         linear_bf.set_bias(jnp.array([2.0, 0.0]))
 
         regularized = regularize(linear_bf, l1_weight=0, l2_weight=0.5)
@@ -584,8 +584,8 @@ class RegularizationTestCase(ut.TestCase):
         assert regularized.val == 10.5
         regularized.backprop(verbose=True)
 
-        self.assertTrue(jnp.allclose(linear_bf.W.grad, jnp.array([[4.0, 1.0]])))
-        self.assertTrue(jnp.allclose(linear_bf.b.grad, jnp.array([[2.0, 0.0]])))
+        self.assertTrue(jnp.allclose(linear_bf.weight.grad, jnp.array([[4.0, 1.0]]).T))
+        self.assertTrue(jnp.allclose(linear_bf.bias.grad, jnp.array([[2.0, 0.0]])))
 
 
 class VisualizeTestCase(ut.TestCase):
@@ -600,7 +600,7 @@ class VisualizeTestCase(ut.TestCase):
         x_bf = bf.Parameter(jnp.array([[3.0]]), name="x")
 
         linear_bf = bf.net.Linear(1, 2)
-        linear_bf.set_weights(jnp.array([[-2.0, 1.0]]))
+        linear_bf.set_weights(jnp.array([[-2.0, 1.0]]).T)
         linear_bf.set_bias(jnp.array([0.0, 0.0]))
 
         output = linear_bf(x_bf)
@@ -611,7 +611,7 @@ class VisualizeTestCase(ut.TestCase):
         y_bf = bf.Parameter(jnp.array([0]), name="y")
 
         linear_bf = bf.net.Linear(1, 2)
-        linear_bf.set_weights(jnp.array([[4.0, 1.0]]))
+        linear_bf.set_weights(jnp.array([[4.0, 1.0]]).T)
         linear_bf.set_bias(jnp.array([0.0, 0.0]))
 
         output = linear_bf(x_bf)

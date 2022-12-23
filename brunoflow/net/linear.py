@@ -2,7 +2,7 @@ import math
 from jax import numpy as jnp
 from jax import random
 from .network import Network, Parameter
-from ..func import matmul
+from ..func import matmul, matrix_transpose
 
 
 def xavier2(m, n):
@@ -26,23 +26,23 @@ class Linear(Network):
 
         m = input_size
         n = output_size
-        self.b = Parameter(random.normal(key=random_key, shape=(n,)) * xavier1(n), name=f"{name}_b")
-        self.W = Parameter(random.normal(key=subkey2, shape=(m, n)) * xavier2(m, n), name=f"{name}_w")
+        self.bias = Parameter(random.normal(key=random_key, shape=(n,)) * xavier1(n), name=f"{name}_b")
+        self.weight = Parameter(random.normal(key=subkey2, shape=(n, m)) * xavier2(n, m), name=f"{name}_w")
 
     def forward(self, x):
-        return matmul(x, self.W) + self.b
+        return matmul(x, matrix_transpose(self.weight)) + self.bias
 
     def set_weights(self, W: jnp.ndarray):
-        assert W.shape == self.W.val.shape
-        self.W.val = W
+        assert W.shape == self.weight.val.shape
+        self.weight.val = W
 
     def set_bias(self, b: jnp.ndarray):
-        assert b.shape == self.b.val.shape
-        self.b.val = b
+        assert b.shape == self.bias.val.shape
+        self.bias.val = b
 
 
 class LinearInitToOne(Linear):
     def __init__(self, input_size, output_size):
         super(LinearInitToOne, self).__init__(input_size, output_size)
-        self.W = Parameter(jnp.ones(shape=(input_size, output_size)))
-        self.b = Parameter(jnp.ones(shape=(output_size,)))
+        self.weight = Parameter(jnp.ones(shape=(input_size, output_size)))
+        self.bias = Parameter(jnp.ones(shape=(output_size,)))

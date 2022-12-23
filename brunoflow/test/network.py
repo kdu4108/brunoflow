@@ -27,7 +27,7 @@ class NetworkTestCase(ut.TestCase):
         linear = bf.net.Linear(in_dim, out_dim)
 
         # Training loop
-        optimizer = bf.opt.SGD(linear.parameters, step_size=0.1)
+        optimizer = bf.opt.SGD(linear.parameters(), step_size=0.1)
         iters = 1000
         for i in range(iters):
             loss = bf.opt.mse_loss(linear(x), y)
@@ -35,5 +35,5 @@ class NetworkTestCase(ut.TestCase):
             loss.backprop()
             optimizer.step()
 
-        self.check(linear.W.val, m)
-        self.check(linear.b.val, b)
+        self.check(linear.weight.val, m.T)
+        self.check(linear.bias.val, b)
