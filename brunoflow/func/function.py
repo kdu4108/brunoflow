@@ -57,7 +57,8 @@ def make_function(forward, backward=None, name_fct=None):
         # Apply the forward function
         out_val = forward(*in_vals)
         # print("args:", args)
-        name = name_fct(*args) if name_fct is not None else None
+        # name = name_fct(*args) if name_fct is not None else None
+        name = None
         # Return a Node which has all the information necessary to perform the backward pass
         return ad.Node(out_val, backward_wrapper if backward else None, inputs=args, name=name)
 

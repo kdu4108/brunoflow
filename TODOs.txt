@@ -23,11 +23,11 @@
                   Inputs:
                    hidden_states=Tensor[shape=(bs, seq_len, hs)] (e.g. shape=(2, 19, 768))
                    attention_mask=Tensor[shape=(bs, 1, 1, seq_len)] (e.g. shape=(2, 1, 1, 19)) - all values are 0
-                    - Implement BFBertAttention
+                    - Implement BFBertAttention (MVP done! pseudo-tested in transformers/bertattention_playground.ipynb. TODO(KD): pruning)
                       Inputs:
                       hidden_states=Tensor[shape=(bs, seq_len, hs)] (e.g. shape=(2, 19, 768))
                       attention_mask=Tensor[shape=(bs, 1, 1, seq_len)] (e.g. shape=(2, 1, 1, 19)) - all values are 0
-                        - Implement BFBertSelfAttention (done, pseudo-tested in bertselfattention_playground.ipynb)
+                        - Implement BFBertSelfAttention (done, pseudo-tested in transformers/bertselfattention_playground.ipynb)
                           Inputs:
                           hidden_states=Tensor[shape=(bs, seq_len, hs)] (e.g. shape=(2, 19, 768))
                           attention_mask=Tensor[shape=(bs, 1, 1, seq_len)] (e.g. shape=(2, 1, 1, 19)) - all values are 0
@@ -35,7 +35,7 @@
                             - implement permute (done! yay dritchie :D)
                             - implement einsum (done-ish - it's buggy, but unit tested that it works for the code snippet we need in bert impl)
                             - implement Dropout (done, not tested)
-                        - Implement BFBertSelfOutput
+                        - Implement BFBertSelfOutput (done! pseudo-tested in transformers/bertselfattention_playground.ipynb)
                           Inputs:
                           hidden_states=Tensor[shape=(bs, seq_len, hs)] (e.g. shape=(2, 19, 768))
                           input_tensor=Tensor[shape=(bs, seq_len, hs)] (e.g. shape=(2, 19, 768))
@@ -67,3 +67,7 @@
     - import ModelOutput
     - override/create new BaseModelOutputWithPastAndCrossAttentions
       Inputs: last_hidden_state=Tensor[shape=(bs, seq_len, hs)] (e.g. shape=(2, 19, 768))
+
+
+Random ideas -
+  - maybe there's a relationship between pruneable heads and the flow? https://towardsdatascience.com/head-pruning-in-transformer-models-ec222ca9ece7

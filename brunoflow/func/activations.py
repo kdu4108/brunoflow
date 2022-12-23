@@ -165,3 +165,8 @@ def log_softmax(x, axis):
     PyTorch equivalent: torch.nn.functional.log_softmax
     """
     return x - expand_dims(reduce_logsumexp(x, axis=axis), axis)
+
+
+ACT2FN = {
+    "gelu": gelu,
+}
