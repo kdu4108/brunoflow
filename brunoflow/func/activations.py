@@ -17,7 +17,6 @@ from .function import make_function, pointwise_backward
 from . import math
 from .reductions import reduce_logsumexp
 from .shape import expand_dims
-from ..ad import name
 from brunoflow.func.utils import construct_single_variable_fct_name
 
 
@@ -114,9 +113,11 @@ _leakyrelu = make_function(
     construct_single_variable_fct_name("leakyrelu", additional_arg_names=("neg_slope",)),
 )
 
+
 @jax.jit
 def _gelu_exact(x):
     return jax.nn.gelu(x, approximate=False)
+
 
 @jax.jit
 def gelu_exact_backward(out, x):
@@ -126,16 +127,20 @@ def gelu_exact_backward(out, x):
 
 gelu = make_function(_gelu_exact, pointwise_backward(gelu_exact_backward), name_fct=lambda x: "gelu")
 
+
 @jax.jit
 def _gelu_approx(x):
     return jax.nn.gelu(x, approximate=True)
+
 
 @jax.jit
 def gelu_approx_backward(out, x):
     jac = jax.jacfwd(_gelu_approx)(x)
     return jnp.sum(jac, axis=tuple(range(len(jac.shape) - len(x.shape))))
 
+
 gelu_approx = make_function(_gelu_approx, pointwise_backward(gelu_approx_backward), name_fct=lambda x: "gelu_approx")
+
 
 def softmax(x, axis):
     """

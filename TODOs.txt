@@ -7,6 +7,8 @@
     - Implement bf.functional.pad (context: modeling_utils.PreTrainedModel._tie_or_clone_weights)
 3. Implement BFBertForMaskedLM
     - Implement BertForMaskedLM
+      Inputs:
+       input_ids=Tensor[shape=(bs, seq_len)] (e.g. shape=(2, 19))
         - Implement BFBertModel (the base, this is used a variety of ways but for example get_input_embeddings())
           Inputs: input_ids: Tensor[shape=(bs, seq_len)] (e.g. shape=(2, 19))
             - Implement BFBertEmbeddings (Done! pseudo-tested load_state_dict, forward pass, and backward pass in transformers/playgrounds/bertembeddings_playground.ipynb)
@@ -16,10 +18,10 @@
                 - Implement bf.Module.register_buffer # I think we can just do like a self.position_ids = ?
             - Implement BFBertEncoder
               Inputs:
-               embedding_output=Tensor[shape=(bs, seq_len, hs)] (e.g. shape=(2, 19, 768))
+               hidden_states=Tensor[shape=(bs, seq_len, hs)] (e.g. shape=(2, 19, 768))
                attention_mask=Tensor[shape=(bs, 1, 1, seq_len)] (e.g. shape=(2, 1, 1, 19)) - all values are 0
                head_mask = [None] * 12
-                - Implement BFBertLayer
+                - Implement BFBertLayer (done! pseudo-tested in transformers/bertlayer_playground.ipynb)
                   Inputs:
                    hidden_states=Tensor[shape=(bs, seq_len, hs)] (e.g. shape=(2, 19, 768))
                    attention_mask=Tensor[shape=(bs, 1, 1, seq_len)] (e.g. shape=(2, 1, 1, 19)) - all values are 0
@@ -39,19 +41,19 @@
                           Inputs:
                           hidden_states=Tensor[shape=(bs, seq_len, hs)] (e.g. shape=(2, 19, 768))
                           input_tensor=Tensor[shape=(bs, seq_len, hs)] (e.g. shape=(2, 19, 768))
-                    - Implement BertIntermediate
+                    - Implement BertIntermediate (done! pseudo-tested in transformers/bertintermediate_playground.ipynb)
                       Inputs:
                       hidden_states=Tensor[shape=(bs, seq_len, hs)] (e.g. shape=(2, 19, 768))
                       Outputs: shape=(bs, seq_len, intermediate_size=3072)
                         - Implement hidden_act = gelu (done!)
-                    - Implement BertOutput
+                    - Implement BertOutput (done, pseudo-tested in transformers/bertoutput_playground.ipynb)
                       Inputs:
                       hidden_states=Tensor[shape=(bs, seq_len, intermediate_size)] (e.g. shape=(2, 19, 3072))
                       input_tensor=Tensor[shape=(bs, seq_len, hs)] (e.g. shape=(2, 19, 768))
                       Outputs: shape=(bs, seq_len, hs=768)
-                    - maybe implement apply_chunking_to_forward?
+                    - maybe implement apply_chunking_to_forward? (NOPE - at least for now, the config sets chunk size to 0 :)
                 - Implement bf.Net.ModuleList?
-                    - Modify bf.Net to include modules as children?
+                    - Modify bf.Net to include modules as children? (done)
             - Implement BFBertPooler
             - Implement ModuleUtilsMixin.get_extended_attention_mask
             - Implement ModuleUtilsMixin.invert_attention_mask
