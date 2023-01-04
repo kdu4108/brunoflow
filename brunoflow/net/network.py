@@ -9,7 +9,10 @@ from collections.abc import Iterable
 from jax import numpy as jnp
 import itertools
 import torch
-from typing import Any, Dict, Iterator, List, Mapping, Optional, Set, Tuple, Union
+from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Set, Tuple, Union
+
+
+_EXTRA_STATE_KEY_SUFFIX = "_extra_state"
 
 
 class Parameter(Node):
@@ -36,7 +39,10 @@ class Network:
     PyTorch analogue: torch.nn.Module
     """
 
+    _version: int = 1  # see torch.nn.Module for why this is here
+
     def __init__(self):
+        self.training = True
         self._modules: Dict[str, Optional[Network]] = OrderedDict()
         self._parameters: Dict[str, Optional[Parameter]] = OrderedDict()
         self._buffers: Dict[str, Optional[Node]] = OrderedDict()
@@ -533,6 +539,8 @@ class Network:
                     # param is the local state, input_param is the new value we want to set it to.
                     input_param: Node = make_into_bf_node(input_param)
                     param.copy_(input_param)
+                    if jnp.any(param.grad):
+                        raise ValueError(f"Param {param} has a non-zero grad!")
                 except Exception as ex:
                     error_msgs.append(
                         'While copying the parameter named "{}", '
@@ -639,6 +647,237 @@ class Network:
                 "Error(s) in loading state_dict for {}:\n\t{}".format(self.__class__.__name__, "\n\t".join(error_msgs))
             )
         return _IncompatibleKeys(missing_keys, unexpected_keys)
+
+    def state_dict(self, *args, destination=None, prefix="", keep_vars=False):
+        r"""Returns a dictionary containing a whole state of the module.
+
+        Both parameters and persistent buffers (e.g. running averages) are
+        included. Keys are corresponding parameter and buffer names.
+        Parameters and buffers set to ``None`` are not included.
+
+        .. warning::
+            Currently ``state_dict()`` also accepts positional arguments for
+            ``destination``, ``prefix`` and ``keep_vars`` in order. However,
+            this is being deprecated and keyword arguments will be enforced in
+            future releases.
+
+        .. warning::
+            Please avoid the use of argument ``destination`` as it is not
+            designed for end-users.
+
+        Args:
+            destination (dict, optional): If provided, the state of module will
+                be updated into the dict and the same object is returned.
+                Otherwise, an ``OrderedDict`` will be created and returned.
+                Default: ``None``.
+            prefix (str, optional): a prefix added to parameter and buffer
+                names to compose the keys in state_dict. Default: ``''``.
+            keep_vars (bool, optional): by default the :class:`~torch.Tensor` s
+                returned in the state dict are detached from autograd. If it's
+                set to ``True``, detaching will not be performed.
+                Default: ``False``.
+
+        Returns:
+            dict:
+                a dictionary containing a whole state of the module
+
+        Example::
+
+            >>> module.state_dict().keys()
+            ['bias', 'weight']
+
+        """
+
+        # TODO: Remove `args` and the parsing logic when BC allows.
+        if len(args) > 0:
+            if destination is None:
+                destination = args[0]
+            if len(args) > 1 and prefix == "":
+                prefix = args[1]
+            if len(args) > 2 and keep_vars is False:
+                keep_vars = args[2]
+            # DeprecationWarning is ignored by default
+            print(
+                "Positional args are being deprecated, use kwargs instead. Refer to "
+                "https://pytorch.org/docs/master/generated/torch.nn.Module.html#torch.nn.Module.state_dict"
+                " for details."
+            )
+
+        if destination is None:
+            destination = OrderedDict()
+            destination._metadata = OrderedDict()
+
+        local_metadata = dict(version=self._version)
+        if hasattr(destination, "_metadata"):
+            destination._metadata[prefix[:-1]] = local_metadata
+
+        self._save_to_state_dict(destination, prefix, keep_vars)
+        for name, module in self._modules.items():
+            if module is not None:
+                module.state_dict(destination=destination, prefix=prefix + name + ".", keep_vars=keep_vars)
+        # for hook in self._state_dict_hooks.values():
+        #     hook_result = hook(self, destination, prefix, local_metadata)
+        #     if hook_result is not None:
+        #         destination = hook_result
+        return destination
+
+    def _save_to_state_dict(self, destination, prefix, keep_vars):
+        r"""Saves module state to `destination` dictionary, containing a state
+        of the module, but not its descendants. This is called on every
+        submodule in :meth:`~torch.nn.Module.state_dict`.
+
+        In rare cases, subclasses can achieve class-specific behavior by
+        overriding this method with custom logic.
+
+        Args:
+            destination (dict): a dict where state will be stored
+            prefix (str): the prefix for parameters and buffers used in this
+                module
+        """
+        if not keep_vars:
+            print(
+                f"WARNING: not detaching params for module {self._get_name()} when saving state dict bc BF doesn't support that."
+            )
+        for name, param in self._parameters.items():
+            if param is not None:
+                destination[prefix + name] = param  # if keep_vars else param.detach()
+        for name, buf in self._buffers.items():
+            if buf is not None and name not in self._non_persistent_buffers_set:
+                destination[prefix + name] = buf  # if keep_vars else buf.detach()
+        extra_state_key = prefix + _EXTRA_STATE_KEY_SUFFIX
+        if getattr(self.__class__, "get_extra_state", Network.get_extra_state) is not Network.get_extra_state:
+            destination[extra_state_key] = self.get_extra_state()
+
+    def get_extra_state(self) -> Any:
+        """
+        Returns any extra state to include in the module's state_dict.
+        Implement this and a corresponding :func:`set_extra_state` for your module
+        if you need to store extra state. This function is called when building the
+        module's `state_dict()`.
+
+        Note that extra state should be pickleable to ensure working serialization
+        of the state_dict. We only provide provide backwards compatibility guarantees
+        for serializing Tensors; other objects may break backwards compatibility if
+        their serialized pickled form changes.
+
+        Returns:
+            object: Any extra state to store in the module's state_dict
+        """
+        raise RuntimeError(
+            "Reached a code path in Module.get_extra_state() that should never be called. "
+            "Please file an issue at https://github.com/pytorch/pytorch/issues/new?template=bug-report.yml "
+            "to report this bug."
+        )
+
+    def train(self: "Network", mode: bool = True) -> "Network":
+        r"""Sets the module in training mode.
+
+        This has any effect only on certain modules. See documentations of
+        particular modules for details of their behaviors in training/evaluation
+        mode, if they are affected, e.g. :class:`Dropout`, :class:`BatchNorm`,
+        etc.
+
+        Args:
+            mode (bool): whether to set training mode (``True``) or evaluation
+                         mode (``False``). Default: ``True``.
+
+        Returns:
+            Module: self
+        """
+        if not isinstance(mode, bool):
+            raise ValueError("training mode is expected to be boolean")
+        self.training = mode
+        for module in self.children():
+            module.train(mode)
+        return self
+
+    def eval(self: "Network") -> "Network":
+        r"""Sets the module in evaluation mode.
+
+        This has any effect only on certain modules. See documentations of
+        particular modules for details of their behaviors in training/evaluation
+        mode, if they are affected, e.g. :class:`Dropout`, :class:`BatchNorm`,
+        etc.
+
+        This is equivalent with :meth:`self.train(False) <torch.nn.Module.train>`.
+
+        See :ref:`locally-disable-grad-doc` for a comparison between
+        `.eval()` and several similar mechanisms that may be confused with it.
+
+        Returns:
+            Module: self
+        """
+        return self.train(False)
+
+    def zero_grad(self, set_to_none: bool = False) -> None:
+        r"""Sets gradients of all model parameters to zero. See similar function
+        under :class:`torch.optim.Optimizer` for more context.
+
+        Args:
+            set_to_none (bool): instead of setting to zero, set the grads to None.
+                See :meth:`torch.optim.Optimizer.zero_grad` for details.
+        """
+        if getattr(self, "_is_replica", False):
+            warnings.warn(
+                "Calling .zero_grad() from a module created with nn.DataParallel() has no effect. "
+                "The parameters are copied (in a differentiable manner) from the original module. "
+                "This means they are not leaf nodes in autograd and so don't accumulate gradients. "
+                "If you need gradients in your forward method, consider using autograd.grad instead."
+            )
+
+        for p in self.parameters():
+            if p.grad is not None:
+                if set_to_none:
+                    p.grad = None
+                else:
+                    # if p.grad.grad_fn is not None:
+                    #     p.grad.detach_()
+                    # else:
+                    #     p.grad.requires_grad_(False)
+                    p.zero_self_gradients()
+
+    def apply(self: "Network", fn: Callable[["Network"], None]) -> "Network":
+        r"""Applies ``fn`` recursively to every submodule (as returned by ``.children()``)
+        as well as self. Typical use includes initializing the parameters of a model
+        (see also :ref:`nn-init-doc`).
+
+        Args:
+            fn (:class:`Module` -> None): function to be applied to each submodule
+
+        Returns:
+            Module: self
+
+        Example::
+
+            >>> @torch.no_grad()
+            >>> def init_weights(m):
+            >>>     print(m)
+            >>>     if type(m) == nn.Linear:
+            >>>         m.weight.fill_(1.0)
+            >>>         print(m.weight)
+            >>> net = nn.Sequential(nn.Linear(2, 2), nn.Linear(2, 2))
+            >>> net.apply(init_weights)
+            Linear(in_features=2, out_features=2, bias=True)
+            Parameter containing:
+            tensor([[ 1.,  1.],
+                    [ 1.,  1.]])
+            Linear(in_features=2, out_features=2, bias=True)
+            Parameter containing:
+            tensor([[ 1.,  1.],
+                    [ 1.,  1.]])
+            Sequential(
+              (0): Linear(in_features=2, out_features=2, bias=True)
+              (1): Linear(in_features=2, out_features=2, bias=True)
+            )
+            Sequential(
+              (0): Linear(in_features=2, out_features=2, bias=True)
+              (1): Linear(in_features=2, out_features=2, bias=True)
+            )
+        """
+        for module in self.children():
+            module.apply(fn)
+        fn(self)
+        return self
 
     def extra_repr(self) -> str:
         r"""Set the extra representation of the module
