@@ -5,7 +5,6 @@ This module defines functions that alter the shape of a tensor/tensors without c
 
 import jax
 from jax import numpy as jnp
-from collections import Counter
 from collections.abc import Iterable
 from brunoflow.func.utils import (
     construct_single_variable_fct_name,
@@ -286,22 +285,6 @@ def _get_embedding_backward(out_val, out_grad, x, arg, padding_idx):
     grad = jnp.einsum(
         "i...,...l->il", transposed_one_hot_args, out_grad
     )  # shape=(vocab_sz, emb_sz) (i=vocab_sz, l=emb_sz, the ... = arg.shape which is shared)
-
-    # Need to cast list to array because otherwise:
-    # `TypeError: Using a non-tuple sequence for multidimensional indexing is not allowed; use `arr[array(seq)]` instead of `arr[seq]`.
-    #   See https://github.com/google/jax/issues/4564 for more information.`
-
-    # # For each index in the vocab, you want to multiply set its grad to be the number of times its being looked up (e.g. how many times its in the sequence) by the out_grad.
-    # counter = Counter(arg.__array__())
-    # num_occurrences_to_inds = dict()
-    # for ind, num_occurrences in counter.items():
-    #     if num_occurrences in num_occurrences_to_inds:
-    #         num_occurrences_to_inds[num_occurrences].append(ind)
-    #     else:
-    #         num_occurrences_to_inds[num_occurrences] = [ind]
-
-    # for num_occurrences, inds in num_occurrences_to_inds.items():
-    #     grad = grad.at[typecast_index_arg_for_jax(inds)].set(out_grad[typecast_index_arg_for_jax(inds)] * num_occurrences)
 
     if padding_idx is not None:
         grad = grad.at[padding_idx].set(0.0)
