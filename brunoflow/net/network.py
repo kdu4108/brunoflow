@@ -47,6 +47,7 @@ class Network:
         self._parameters: Dict[str, Optional[Parameter]] = OrderedDict()
         self._buffers: Dict[str, Optional[Node]] = OrderedDict()
         self._non_persistent_buffers_set: Set[str] = set()
+        self.extra_name = None
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
@@ -134,6 +135,7 @@ class Network:
             )
         else:
             self._parameters[name] = param
+            param.module = self
 
     def register_buffer(self, name: str, tensor: Optional[Node], persistent: bool = True) -> None:
         r"""Adds a buffer to the module.
@@ -257,7 +259,7 @@ class Network:
             object.__delattr__(self, name)
 
     def _get_name(self):
-        return self.__class__.__name__
+        return self.__class__.__name__ + (f"({self.extra_name})" if self.extra_name is not None else "")
 
     def _named_members(self, get_members_fn, prefix="", recurse=True):
         r"""Helper method for yielding various names + members of modules."""

@@ -17,7 +17,7 @@ class Linear(Network):
 
     typename = "Linear"
 
-    def __init__(self, input_size, output_size, bias=True, random_key_val=42, name="linear"):
+    def __init__(self, input_size, output_size, bias=True, random_key_val=42, name="linear", extra_name=None):
         super(Linear, self).__init__()
         random_key = random.PRNGKey(random_key_val)
         # Subkeys are destined for immediate consumption by random functions, while the key is retained to generate more randomness later.
@@ -31,6 +31,8 @@ class Linear(Network):
             self.bias = Parameter(random.normal(key=random_key, shape=(n,)) * xavier1(n), name=f"{name}_b")
         else:
             self.register_parameter("bias", None)
+
+        self.extra_name = extra_name
 
     def forward(self, x):
         return matmul(x, matrix_transpose(self.weight)) + self.bias

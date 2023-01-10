@@ -13,7 +13,11 @@ class LayerNorm(Network):
     typename = "LayerNorm"
 
     def __init__(
-        self, normalized_shape: Union[int, List[int]], eps: float = 1e-5, elementwise_affine: bool = True
+        self,
+        normalized_shape: Union[int, List[int]],
+        eps: float = 1e-5,
+        elementwise_affine: bool = True,
+        extra_name=None,
     ) -> None:
         super(LayerNorm, self).__init__()
         if isinstance(normalized_shape, numbers.Integral):
@@ -28,6 +32,8 @@ class LayerNorm(Network):
         # else:
         #     self.register_parameter('weight', None)
         #     self.register_parameter('bias', None)
+
+        self.extra_name = extra_name
 
     def forward(self, x: Node) -> Node:
         # taken from https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/labml_nn/normalization/layer_norm/__init__.py

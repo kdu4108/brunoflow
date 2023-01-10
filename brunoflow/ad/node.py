@@ -6,7 +6,7 @@ import numpy as np
 import numpy.typing as npt
 import jax
 from jax import numpy as jnp
-from typing import Any, List, Tuple, Union
+from typing import Any, List, Tuple, Union, Set
 import uuid
 
 import brunoflow as bf
@@ -53,6 +53,7 @@ class Node:
         backward_func=None,
         inputs: List[Union[Node, jnp.ndarray, Any]] = [],
         name: str = None,
+        module: bf.net.Network = None,
     ):
         if isinstance(val, np.ndarray):
             # Force all np arrays to be JAX
@@ -72,9 +73,11 @@ class Node:
         self.entropy_wrt_output: Union[jnp.ndarray, jnp.float32] = jnp.zeros_like(val, dtype=jnp.float32)
         self.abs_val_grad: Union[jnp.ndarray, jnp.float32] = jnp.zeros_like(val, dtype=jnp.float32)
         self.backward_func = backward_func
-        self.inputs = inputs
-        self.name = name
-        self.__num_uses = 0
+        self.inputs: List[Union[Node, jnp.ndarray]] = inputs
+        self.parents: Set[Node] = set()  # parents from the backward pass perspective; the opposite of inputs
+        self.module: bf.net.Network = module  # if the Node is a parameter of a Module, save which one here
+        self.name: str = name
+        self.__num_uses: int = 0
         self.id: str = uuid.uuid4().hex
         self.graph = graphviz.Digraph("computation_graph", filename="computation_graph.gv")
 
@@ -128,22 +131,41 @@ class Node:
 
         return nodes, edges
 
-    def visualize(self, save_path="graph.png", vals_to_include={"grad", "entropy"}):
+    def visualize(
+        self, save_path="graph.png", vals_to_include={"grad", "entropy"}, shape_only=True, collapse_to_modules=False
+    ):
         import matplotlib.pyplot as plt
 
         nodes, edges = self.subtree(visited=set())
         G = nx.DiGraph(directed=True)
 
-        def get_node_shortname(node):
-            return node.name.split(" ")[0][1:] if node.name.startswith("(") else node.name
+        def get_node_shortname(node: Union[Node, bf.net.Network]) -> str:
+            if isinstance(node, bf.net.Network):
+                return node._get_name()
+            elif isinstance(node, Node):
+                name = node.name
+                if isinstance(name, str):
+                    return name.split(" ", maxsplit=1)[0][1:] if name.startswith("(") else name
+                elif isinstance(node.val, jnp.ndarray):
+                    name = str(node.shape)
+                else:
+                    raise NotImplementedError(
+                        f"should this ever happen? get_node_shortname was passed a node with value of type {type(node.val)} instead of jnparray"
+                    )
+            else:
+                raise NotImplementedError(
+                    f"should this ever happen? get_node_shortname was passed obj of type {type(node)} instead of a Node"
+                )
 
-        def get_grad(node: Node):
+            return name
+
+        def get_grad(node: Node) -> jnp.ndarray:
             grad = node.grad.copy()
-            if isinstance(grad, np.ndarray) and len(grad.shape) > 1:
-                grad = np.mean(grad, axis=0)
+            if isinstance(grad, jnp.ndarray) and len(grad.shape) > 1:
+                grad = jnp.mean(grad, axis=0)
             return grad.round(decimals=4)
 
-        def get_entropy(node: Node):
+        def get_entropy(node: Node) -> jnp.ndarray:
             entropy = node.compute_entropy().val.copy()
             # if isinstance(entropy, np.ndarray) and "_w" not in node.name:
             #     entropy = np.mean(entropy, axis=0)
@@ -156,21 +178,76 @@ class Node:
             operator = node_name[1:] if node_name.startswith("(") else node_name
             return operator
 
-        def construct_label(node, vals_to_include={"grad", "entropy"}):
-            node_name = get_node_shortname(node)
+        def construct_label(
+            node: Union[Node, bf.net.Network], vals_to_include={"grad", "entropy"}, shape_only=True
+        ) -> str:
+            node_name: str = get_node_shortname(node)
             label = node_name
-            if "grad" in vals_to_include:
-                node_grad = get_grad(node)
-                label += f"\ngrad: {node_grad}"
-            if "entropy" in vals_to_include:
-                node_entropy = get_entropy(node)
-                label += f"\nentropy: {node_entropy}"
+            if isinstance(node, bf.net.Network):
+                return label
+
+            if shape_only:
+                label += f"\nshape: {node.shape}"
+            else:
+                if "grad" in vals_to_include:
+                    node_grad = get_grad(node)
+                    label += f"\ngrad: {node_grad}"
+                if "entropy" in vals_to_include:
+                    node_entropy = get_entropy(node)
+                    label += f"\nentropy: {node_entropy}"
 
             return label
 
+        def construct_edge_label(
+            e1: Union[Node, bf.net.Network],
+            e2: Union[Node, bf.net.Network],
+            vals_to_include={"grad", "entropy"},
+            shape_only=True,
+        ) -> str:
+            e1_name: str = get_node_shortname(e1)
+            e2_name: str = get_node_shortname(e2)
+            label = f"{e1_name} -> {e2_name}"
+
+            return label
+
+        def collapse_nodes_to_modules(nodes, edges):
+            node_to_modules_map = dict()
+            new_nodes = []
+            for node in nodes:
+                if node.module is not None:
+                    new_nodes.append(node.module)
+                    node_to_modules_map[node] = node.module
+                else:
+                    new_nodes.append(node)
+
+            new_edges = []
+            for src, dest in edges:
+                new_src, new_dest = src, dest
+                if src in node_to_modules_map:
+                    new_src = node_to_modules_map[src]
+                if dest in node_to_modules_map:
+                    new_dest = node_to_modules_map[dest]
+
+                if hasattr(new_src, "id") and hasattr(new_dest, "id"):
+                    if new_src.id != new_dest.id:
+                        new_edges.append((new_src, new_dest))
+                elif new_src != new_dest:
+                    new_edges.append((new_src, new_dest))
+
+            return new_nodes, new_edges
+
+        if collapse_to_modules:
+            nodes, edges = collapse_nodes_to_modules(nodes, edges)
+
         # G.add_nodes_from(nodes)
-        G.add_nodes_from([(node, {"label": construct_label(node, vals_to_include=vals_to_include)}) for node in nodes])
-        G.add_edges_from(edges)  # [(n1.get_id(), n2.get_id()) for n1, n2 in edges])
+        G.add_nodes_from(
+            [
+                (node, {"label": construct_label(node, vals_to_include=vals_to_include, shape_only=shape_only)})
+                for node in nodes
+            ]
+        )
+        # G.add_edges_from([(e1, e2, {"label": construct_edge_label(e1, e2)}) for (e1, e2) in edges])  # [(n1.get_id(), n2.get_id()) for n1, n2 in edges])
+        G.add_edges_from(edges)
 
         G = nx.nx_agraph.to_agraph(G)
         # for i in range(len(G.nodes())):
@@ -309,6 +386,7 @@ class Node:
                     == self.inputs[i].entropy_wrt_output.shape
                     == self.inputs[i].abs_val_grad.shape
                 )
+                self.inputs[i].parents.add(self)
                 # An adjoint may need to be 'reshaped' before it can be accumulated if the forward operation used broadcasting.
                 adj_max_grad = reshape_adjoint(adj_max_grad, self.inputs[i].grad.shape)
                 adj_max_neg_grad = reshape_adjoint(adj_max_neg_grad, self.inputs[i].grad.shape)

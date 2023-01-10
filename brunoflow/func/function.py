@@ -5,8 +5,9 @@ This module contains the code for defining new autodiff functions.
 from collections.abc import Iterable
 import inspect
 from jax import numpy as jnp
-from .. import ad
+from .. import ad  # , net
 from operator import __mul__
+from typing import Optional
 
 
 def make_function(forward, backward=None, name_fct=None):
@@ -57,10 +58,26 @@ def make_function(forward, backward=None, name_fct=None):
         # Apply the forward function
         out_val = forward(*in_vals)
         # print("args:", args)
-        # name = name_fct(*args) if name_fct is not None else None
-        name = None
+        name: str = name_fct(*args) if name_fct is not None else None
+        if isinstance(name, str) and name.startswith("("):
+            name = name.split(" ", maxsplit=1)[0][1:]
+
+        # Pick the module for the new node, if any
+        # module: Optional[net.Network] = None
+        module = None
+        arg_modules = []
+        for arg in args:
+            if isinstance(arg, ad.Node) and arg.module is not None:
+                arg_modules.append(arg.module)
+        arg_modules_set = set(arg_modules)
+        if len(arg_modules_set) > 1:
+            print(
+                f"WARNING: Node of name {name} has inputs from different modules, {arg_modules_set}. Picking its module to be the FIRST one, {arg_modules[0]}."
+            )
+        module = arg_modules[0] if arg_modules else None
+
         # Return a Node which has all the information necessary to perform the backward pass
-        return ad.Node(out_val, backward_wrapper if backward else None, inputs=args, name=name)
+        return ad.Node(out_val, backward_wrapper if backward else None, inputs=args, name=name, module=module)
 
     return autodiff_function
 

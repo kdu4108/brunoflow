@@ -27,6 +27,7 @@ class Embedding(Network):
         device=None,
         dtype=None,
         random_key_val=42,
+        extra_name=None,
     ) -> None:
         super(Embedding, self).__init__()
 
@@ -35,7 +36,7 @@ class Embedding(Network):
         self.num_embeddings = num_embeddings
         self.embedding_dim = embedding_dim
         self.padding_idx = padding_idx
-        self.name = f"Embedding Layer ({self.num_embeddings}, {self.embedding_dim})"
+        self.extra_name = extra_name
         embedding_weights_name = f"emb weights ({self.num_embeddings}, {self.embedding_dim})"
         if _weight is None:
             self.weight = Parameter(
