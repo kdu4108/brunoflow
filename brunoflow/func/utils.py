@@ -12,6 +12,8 @@ class SemiringEdgeType(Enum):
     ENTROPY = 1
     ABS_VAL_GRAD = 2
     GRAD = 3
+    MAX_POS_GRAD = 4
+    MAX_NEG_GRAD = 5
 
 
 # Map from the SemiringEdgeType -> the name of the key in the `out_grad` dict
@@ -19,11 +21,15 @@ class SemiringEdgeType(Enum):
 SEMIRING_EDGE_TYPE_TO_OUT_GRAD_DICT_KEY = {
     SemiringEdgeType.ENTROPY: "out_entropy",
     SemiringEdgeType.ABS_VAL_GRAD: "out_abs_val_grad",
+    SemiringEdgeType.MAX_POS_GRAD: "out_max_pos_grad",
+    SemiringEdgeType.MAX_NEG_GRAD: "out_max_neg_grad",
 }
 
 # Name of the possible key-sets of the `out_grad` dict from which to infer the SemiringEdgeType
 ENTROPY_SEMIRING_OUT_GRAD_KEYS = set(["out_entropy", "out_abs_val_grad"])
 ABS_VAL_GRAD_OUT_GRAD_KEYS = set(["out_abs_val_grad"])
+MAX_POS_GRAD_OUT_GRAD_KEYS = set(["out_max_pos_grad"])
+MAX_NEG_GRAD_OUT_GRAD_KEYS = set(["out_max_neg_grad"])
 
 
 def get_semiring_edge_type(out_grad: Union[dict, int]) -> SemiringEdgeType:
@@ -34,9 +40,13 @@ def get_semiring_edge_type(out_grad: Union[dict, int]) -> SemiringEdgeType:
             return SemiringEdgeType.ENTROPY
         elif out_grad_keys == ABS_VAL_GRAD_OUT_GRAD_KEYS:
             return SemiringEdgeType.ABS_VAL_GRAD
+        elif out_grad_keys == MAX_POS_GRAD_OUT_GRAD_KEYS:
+            return SemiringEdgeType.MAX_POS_GRAD
+        elif out_grad_keys == MAX_NEG_GRAD_OUT_GRAD_KEYS:
+            return SemiringEdgeType.MAX_NEG_GRAD
         else:
             raise ValueError(
-                f"The `out_grad` parameter to the backward pass of this function is a dict that does not exactly match the keys for `entropy` or `abs_val_grad`.\nout_grad value: {out_grad}.\nMake sure you only pass in the necessary keys for your semiring!"
+                f"The `out_grad` parameter to the backward pass of this function is a dict that does not exactly match the keys for `entropy`, `abs_val_grad`, or `max_grad`.\nout_grad value: {out_grad}.\nMake sure you only pass in the necessary keys for your semiring!"
             )
     else:
         return SemiringEdgeType.GRAD

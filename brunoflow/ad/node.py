@@ -10,7 +10,12 @@ from typing import Any, List, Tuple, Union, Set
 import uuid
 
 import brunoflow as bf
-from brunoflow.ad.utils import abs_val_grad_product_fn, entropy_product_fn
+from brunoflow.ad.utils import (
+    abs_val_grad_product_fn,
+    entropy_product_fn,
+    max_pos_grad_product_fn,
+    max_neg_grad_product_fn,
+)
 
 
 # class IdState:
@@ -62,12 +67,12 @@ class Node:
         self.grad: Union[jnp.ndarray, jnp.float32] = jnp.zeros_like(val, dtype=jnp.float32)
         self.max_grad_of_output_wrt_node: Tuple[Union[jnp.ndarray, jnp.float32], Union[npt.NDArray[Node], Node]] = (
             jnp.full_like(val, fill_value=-jnp.inf, dtype=jnp.float32),
-            None,
+            np.full(np.shape(val), None),
             # jnp.empty_like(val, dtype=type(None)),
         )
         self.max_neg_grad_of_output_wrt_node: Tuple[Union[jnp.ndarray, jnp.float32], Union[npt.NDArray[Node], Node]] = (
             jnp.full_like(val, fill_value=jnp.inf, dtype=jnp.float32),
-            None,
+            np.full(np.shape(val), None),
             # jnp.empty_like(val, dtype=type(None)),
         )
         self.entropy_wrt_output: Union[jnp.ndarray, jnp.float32] = jnp.zeros_like(val, dtype=jnp.float32)
@@ -270,6 +275,15 @@ class Node:
     def ndim(self):
         return self.val.ndim
 
+    def get_parents(self) -> List[Node]:
+        return list(self.parents)
+
+    def get_max_grad_parent(self) -> Union[npt.NDArray[Node], Node]:
+        return self.max_grad_of_output_wrt_node[1]
+
+    def get_max_neg_grad_parent(self) -> Union[npt.NDArray[Node], Node]:
+        return self.max_neg_grad_of_output_wrt_node[1]
+
     def __str__(self):
         return f"node(name: {self.name}, val: {self.val}, grad: {self.grad})"
 
@@ -303,8 +317,14 @@ class Node:
         # print(f"Entering backprop on node {self.name}:", self)
         if isinstance(self.grad, jnp.ndarray):
             self.grad = jnp.full_like(self.grad, 1.0)
-            self.max_grad_of_output_wrt_node = (jnp.full_like(self.max_grad_of_output_wrt_node[0], 1.0), None)
-            self.max_neg_grad_of_output_wrt_node = (jnp.full_like(self.max_neg_grad_of_output_wrt_node[0], 1.0), None)
+            self.max_grad_of_output_wrt_node = (
+                jnp.full_like(self.max_grad_of_output_wrt_node[0], 1.0),
+                np.full(self.max_grad_of_output_wrt_node[1].shape, None),
+            )
+            self.max_neg_grad_of_output_wrt_node = (
+                jnp.full_like(self.max_neg_grad_of_output_wrt_node[0], 1.0),
+                np.full(self.max_neg_grad_of_output_wrt_node[1].shape, None),
+            )
             self.entropy_wrt_output = jnp.full_like(self.entropy_wrt_output, 0.0)
             self.abs_val_grad = jnp.full_like(self.abs_val_grad, 1.0)
         else:
@@ -367,10 +387,20 @@ class Node:
         assert (self.max_grad_of_output_wrt_node[0] >= self.max_neg_grad_of_output_wrt_node[0]).all()
 
         # Multiply the max pos grad of self w.r.t. output by the local derivative for each input val
-        adjoints_max_grad = backward_func(self.val, self.max_grad_of_output_wrt_node[0], *input_vals)
+        adjoints_max_grad = backward_func(
+            self.val,
+            dict(out_max_pos_grad=self.max_grad_of_output_wrt_node[0]),
+            *input_vals,
+            product_fn=max_pos_grad_product_fn,
+        )
 
         # Multiply the max neg grad of self w.r.t. output by the local derivative for each input val
-        adjoints_max_neg_grad = backward_func(self.val, self.max_neg_grad_of_output_wrt_node[0], *input_vals)
+        adjoints_max_neg_grad = backward_func(
+            self.val,
+            dict(out_max_neg_grad=self.max_neg_grad_of_output_wrt_node[0]),
+            *input_vals,
+            product_fn=max_neg_grad_product_fn,
+        )
 
         assert len(input_vals) == len(adjoints_max_grad) == len(adjoints_max_neg_grad)
         # Accumulate these adjoints into the gradients for this Node's inputs
@@ -398,59 +428,65 @@ class Node:
 
                 # ACCUMULATE MAX POS GRAD BY USING THE MAX OPERATOR
                 # Replace the current (max grad value, parent) of the ith input node with (max grad value of self, self) for all elements in the ith input node that have higher max grad values in self.
-                prev_vals = jnp.copy(self.inputs[i].max_grad_of_output_wrt_node[0])
-                # prev_vals, prev_parents = jnp.copy(self.inputs[i].max_grad_of_output_wrt_node[0]), jnp.copy(
-                #     self.inputs[i].max_grad_of_output_wrt_node[1]
-                # )
+                # prev_vals = jnp.copy(self.inputs[i].max_grad_of_output_wrt_node[0])
+                prev_vals, prev_parents = jnp.copy(self.inputs[i].max_grad_of_output_wrt_node[0]), np.copy(
+                    self.inputs[i].max_grad_of_output_wrt_node[1]
+                )
+
+                inds_to_replace_max_grad = adj_max_grad > self.inputs[i].max_grad_of_output_wrt_node[0]
                 self.inputs[i].max_grad_of_output_wrt_node = (
                     jnp.where(
-                        adj_max_grad > self.inputs[i].max_grad_of_output_wrt_node[0],
+                        inds_to_replace_max_grad,
                         adj_max_grad,
                         self.inputs[i].max_grad_of_output_wrt_node[0],
                     ),
-                    None,
+                    np.where(
+                        inds_to_replace_max_grad,
+                        self,
+                        self.inputs[i].max_grad_of_output_wrt_node[1],
+                    ),
                 )
 
-                # self.inputs[i].max_grad_of_output_wrt_node[1][inds_to_replace_max_grad] = self
-                if verbose and not jnp.array_equal(prev_vals, self.inputs[i].max_grad_of_output_wrt_node[0]):
+                if verbose and not (
+                    jnp.array_equal(prev_vals, self.inputs[i].max_grad_of_output_wrt_node[0])
+                    and np.array_equal(prev_parents, self.inputs[i].max_grad_of_output_wrt_node[1])
+                ):
                     print(
-                        f"    Replacing max_grad of node {self.inputs[i].name}:\n     from {prev_vals} \n       to {self.inputs[i].max_grad_of_output_wrt_node[0]}."
+                        f"    Replacing max_grad of node {self.inputs[i].name}:\n     from {(prev_vals, prev_parents)} \n       to {self.inputs[i].max_grad_of_output_wrt_node}."
                     )
-                # if verbose and not jnp.array_equal(
-                #     (prev_vals, prev_parents), self.inputs[i].max_grad_of_output_wrt_node
-                # ):
-                #     print(
-                #         f"    Replacing max_grad of node {self.inputs[i].name}:\n     from {(prev_vals, prev_parents)} \n       to {self.inputs[i].max_grad_of_output_wrt_node}."
-                #     )
-                # del prev_vals, prev_parents
+
+                del prev_vals, prev_parents
 
                 # ACCUMULATE MAX NEG GRAD BY USING THE MIN OPERATOR
                 # Replace the current (max neg grad value, parent) of the ith input node with (max neg grad value of self, self) for all elements in the ith input node that have more negative max neg grad values in self.
-                prev_vals = jnp.copy(self.inputs[i].max_neg_grad_of_output_wrt_node[0])
-                # prev_vals, prev_parents = jnp.copy(self.inputs[i].max_neg_grad_of_output_wrt_node[0]), jnp.copy(
-                #     self.inputs[i].max_neg_grad_of_output_wrt_node[1]
-                # )
+                # prev_vals = jnp.copy(self.inputs[i].max_neg_grad_of_output_wrt_node[0])
+                prev_vals, prev_parents = jnp.copy(self.inputs[i].max_neg_grad_of_output_wrt_node[0]), np.copy(
+                    self.inputs[i].max_neg_grad_of_output_wrt_node[1]
+                )
+
+                inds_to_replace_max_neg_grad = adj_max_neg_grad < self.inputs[i].max_neg_grad_of_output_wrt_node[0]
                 self.inputs[i].max_neg_grad_of_output_wrt_node = (
                     jnp.where(
-                        adj_max_neg_grad < self.inputs[i].max_neg_grad_of_output_wrt_node[0],
+                        inds_to_replace_max_neg_grad,
                         adj_max_neg_grad,
                         self.inputs[i].max_neg_grad_of_output_wrt_node[0],
                     ),
-                    None,
+                    np.where(
+                        inds_to_replace_max_neg_grad,
+                        self,
+                        self.inputs[i].max_neg_grad_of_output_wrt_node[1],
+                    ),
                 )
 
-                # self.inputs[i].max_neg_grad_of_output_wrt_node[1][inds_to_replace_max_neg_grad] = self
-                if verbose and not jnp.array_equal(prev_vals, self.inputs[i].max_neg_grad_of_output_wrt_node[0]):
+                if verbose and not (
+                    jnp.array_equal(prev_vals, self.inputs[i].max_neg_grad_of_output_wrt_node[0])
+                    and np.array_equal(prev_parents, self.inputs[i].max_neg_grad_of_output_wrt_node[1])
+                ):
                     print(
-                        f"    Replacing max_neg_grad of node {self.inputs[i].name}:\n     from {prev_vals} \n       to {self.inputs[i].max_neg_grad_of_output_wrt_node[0]}."
+                        f"    Replacing max_neg_grad of node {self.inputs[i].name}:\n     from {(prev_vals, prev_parents)} \n       to {self.inputs[i].max_neg_grad_of_output_wrt_node}."
                     )
-                # if verbose and not jnp.array_equal(
-                #     (prev_vals, prev_parents), self.inputs[i].max_neg_grad_of_output_wrt_node
-                # ):
-                #     print(
-                #         f"    Replacing max_neg_grad of node {self.inputs[i].name}:\n     from {(prev_vals, prev_parents)} \n       to {self.inputs[i].max_neg_grad_of_output_wrt_node}."
-                #     )
-                # del prev_vals, prev_parents
+
+                del prev_vals, prev_parents
 
     def _compute_and_accumulate_abs_val_grads_for_inputs(self, input_vals, backward_func, verbose=False):
         # Required for running the entropy semiring properly, compute the abs value of the gradient
@@ -601,12 +637,12 @@ class Node:
             # Careful - ndarray.fill() when type(ndarray) is int results in this int overflow thing instead of inf.
             self.max_grad_of_output_wrt_node = (
                 jnp.full_like(self.max_grad_of_output_wrt_node[0], fill_value=-jnp.inf, dtype=jnp.float32),
-                None,
+                np.full(self.max_grad_of_output_wrt_node[1].shape, None),
                 # jnp.empty_like(self.max_grad_of_output_wrt_node[1], dtype=type(None)),
             )
             self.max_neg_grad_of_output_wrt_node = (
                 jnp.full_like(self.max_neg_grad_of_output_wrt_node[0], fill_value=jnp.inf, dtype=jnp.float32),
-                None,
+                np.full(self.max_neg_grad_of_output_wrt_node[1].shape, None),
                 # jnp.empty_like(self.max_neg_grad_of_output_wrt_node[1], dtype=type(None)),
             )
             self.entropy_wrt_output = jnp.full_like(self.entropy_wrt_output, 0.0)
@@ -649,12 +685,12 @@ class Node:
                 # Careful - ndarray.fill() when type(ndarray) is int results in this int overflow thing instead of inf.
                 self.max_grad_of_output_wrt_node = (
                     jnp.full_like(self.max_grad_of_output_wrt_node[0], fill_value=-jnp.inf, dtype=jnp.float32),
-                    None,
+                    np.full(self.max_grad_of_output_wrt_node[1].shape, None),
                     # jnp.empty_like(self.max_grad_of_output_wrt_node[1], dtype=type(None)),
                 )
                 self.max_neg_grad_of_output_wrt_node = (
                     jnp.full_like(self.max_neg_grad_of_output_wrt_node[0], fill_value=jnp.inf, dtype=jnp.float32),
-                    None,
+                    np.full(self.max_neg_grad_of_output_wrt_node[1].shape, None),
                     # jnp.empty_like(self.max_neg_grad_of_output_wrt_node[1], dtype=type(None)),
                 )
                 self.entropy_wrt_output = jnp.full_like(self.entropy_wrt_output, 0.0)

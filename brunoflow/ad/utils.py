@@ -17,6 +17,16 @@ def entropy_product_fn(l_adj, out_grad_and_entropy_dict):
     )
 
 
+@jax.jit
+def max_pos_grad_product_fn(l_adj, out_max_pos_grad_dict):
+    return l_adj * out_max_pos_grad_dict["out_max_pos_grad"]
+
+
+@jax.jit
+def max_neg_grad_product_fn(l_adj, out_max_neg_grad_dict):
+    return l_adj * out_max_neg_grad_dict["out_max_neg_grad"]
+
+
 def check_node_equals_tensor(node, tensor: Tensor):
     return jnp.array_equal(node.val, tensor.detach().numpy())
 

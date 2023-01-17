@@ -69,11 +69,11 @@ def make_function(forward, backward=None, name_fct=None):
         for arg in args:
             if isinstance(arg, ad.Node) and arg.module is not None:
                 arg_modules.append(arg.module)
-        arg_modules_set = set(arg_modules)
-        if len(arg_modules_set) > 1:
-            print(
-                f"WARNING: Node of name {name} has inputs from different modules, {arg_modules_set}. Picking its module to be the FIRST one, {arg_modules[0]}."
-            )
+        # arg_modules_set = set(arg_modules)
+        # if len(arg_modules_set) > 1:
+        #     print(
+        #         f"WARNING: Node of name {name} has inputs from different modules, {arg_modules_set}. Picking its module to be the FIRST one, {arg_modules[0]}."
+        #     )
         module = arg_modules[0] if arg_modules else None
 
         # Return a Node which has all the information necessary to perform the backward pass
