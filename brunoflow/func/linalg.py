@@ -264,53 +264,63 @@ def matmul_backward(out_val, out_grad, A, B):
 
     elif isinstance(out_grad, dict) and "out_max_pos_grad" in out_grad:
         out_grad = out_grad["out_max_pos_grad"]
+        return (
+            jnp.matmul(out_grad, __np_matrix_transpose(B_factor)),
+            jnp.matmul(__np_matrix_transpose(A_factor), out_grad),
+        )
 
-        if len(out_grad.shape) == 2:
-            # A_factor.shape = (k, i)
-            # B_factor.shape = (i, j)
-            # out_grad.shape = (k, j)
-            # For dout/dA, we want output shape of (k, i) (so, max over the j-dimension)
-            # For dout/dB, we want output shape of (i, j) (so, max over the k-dimension)
-            return (
-                jnp.max(jnp.einsum("ij, kj -> jki", B_factor, out_grad), axis=0),
-                jnp.max(jnp.einsum("ki, kj -> kij", A_factor, out_grad), axis=0),
-            )
-        elif len(out_grad.shape) == 3:
-            # THIS IS JUST NOT TESTED :/
-            # A_factor.shape = (b, k, i)
-            # B_factor.shape = (i, j)
-            # out_grad.shape = (b, k, j)
-            # For dout/dA, we want output shape of (b, k, i) (so, max over the j-dimension)
-            # For dout/dB, we want output shape of (i, j) (so, max over the k-dimension)
-            return (
-                jnp.max(jnp.einsum("ij, bkj -> jbki", B_factor, out_grad), axis=0),
-                jnp.max(jnp.einsum("bki, bkj -> kbij", A_factor, out_grad), axis=0),
-            )
+        # Neuron-granularity
+        # if len(out_grad.shape) == 2:
+        #     # A_factor.shape = (k, i)
+        #     # B_factor.shape = (i, j)
+        #     # out_grad.shape = (k, j)
+        #     # For dout/dA, we want output shape of (k, i) (so, max over the j-dimension)
+        #     # For dout/dB, we want output shape of (i, j) (so, max over the k-dimension)
+        #     return (
+        #         jnp.max(jnp.einsum("ij, kj -> jki", B_factor, out_grad), axis=0),
+        #         jnp.max(jnp.einsum("ki, kj -> kij", A_factor, out_grad), axis=0),
+        #     )
+        # elif len(out_grad.shape) == 3:
+        #     # THIS IS JUST NOT TESTED :/
+        #     # A_factor.shape = (b, k, i)
+        #     # B_factor.shape = (i, j)
+        #     # out_grad.shape = (b, k, j)
+        #     # For dout/dA, we want output shape of (b, k, i) (so, max over the j-dimension)
+        #     # For dout/dB, we want output shape of (i, j) (so, max over the k-dimension)
+        #     return (
+        #         jnp.max(jnp.einsum("ij, bkj -> jbki", B_factor, out_grad), axis=0),
+        #         jnp.max(jnp.einsum("bki, bkj -> kbij", A_factor, out_grad), axis=0),
+        #     )
 
     elif isinstance(out_grad, dict) and "out_max_neg_grad" in out_grad:
         out_grad = out_grad["out_max_neg_grad"]
+        return (
+            jnp.matmul(out_grad, __np_matrix_transpose(B_factor)),
+            jnp.matmul(__np_matrix_transpose(A_factor), out_grad),
+        )
 
-        if len(out_grad.shape) == 2:
-            # A_factor.shape = (k, i)
-            # B_factor.shape = (i, j)
-            # out_grad.shape = (k, j)
-            # For dout/dA, we want output shape of (k, i) (so, max over the j-dimension)
-            # For dout/dB, we want output shape of (i, j) (so, max over the k-dimension)
-            return (
-                jnp.min(jnp.einsum("ij, kj -> jki", B_factor, out_grad), axis=0),
-                jnp.min(jnp.einsum("ki, kj -> kij", A_factor, out_grad), axis=0),
-            )
-        elif len(out_grad.shape) == 3:
-            # THIS IS JUST NOT TESTED :/
-            # A_factor.shape = (b, k, i)
-            # B_factor.shape = (i, j)
-            # out_grad.shape = (b, k, j)
-            # For dout/dA, we want output shape of (b, k, i) (so, max over the j-dimension)
-            # For dout/dB, we want output shape of (i, j) (so, max over the k-dimension)
-            return (
-                jnp.min(jnp.einsum("ij, bkj -> jbki", B_factor, out_grad), axis=0),
-                jnp.min(jnp.einsum("bki, bkj -> kbij", A_factor, out_grad), axis=0),
-            )
+        # Neuron-granularity
+        # if len(out_grad.shape) == 2:
+        #     # A_factor.shape = (k, i)
+        #     # B_factor.shape = (i, j)
+        #     # out_grad.shape = (k, j)
+        #     # For dout/dA, we want output shape of (k, i) (so, max over the j-dimension)
+        #     # For dout/dB, we want output shape of (i, j) (so, max over the k-dimension)
+        #     return (
+        #         jnp.min(jnp.einsum("ij, kj -> jki", B_factor, out_grad), axis=0),
+        #         jnp.min(jnp.einsum("ki, kj -> kij", A_factor, out_grad), axis=0),
+        #     )
+        # elif len(out_grad.shape) == 3:
+        #     # THIS IS JUST NOT TESTED :/
+        #     # A_factor.shape = (b, k, i)
+        #     # B_factor.shape = (i, j)
+        #     # out_grad.shape = (b, k, j)
+        #     # For dout/dA, we want output shape of (b, k, i) (so, max over the j-dimension)
+        #     # For dout/dB, we want output shape of (i, j) (so, max over the k-dimension)
+        #     return (
+        #         jnp.min(jnp.einsum("ij, bkj -> jbki", B_factor, out_grad), axis=0),
+        #         jnp.min(jnp.einsum("bki, bkj -> kbij", A_factor, out_grad), axis=0),
+        #     )
 
     return (
         jnp.matmul(out_grad, __np_matrix_transpose(B_factor)),
