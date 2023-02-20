@@ -6,5 +6,5 @@ from brunoflow.opt import cross_entropy_loss
 class CrossEntropyLoss(Network):
     r"""This criterion computes the cross entropy loss between input and target."""
 
-    def forward(self, input: Node) -> Node:
-        return cross_entropy_loss(input)
+    def forward(self, output: Node, target: Node) -> Node:
+        return cross_entropy_loss(output, target)
