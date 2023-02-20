@@ -2,7 +2,8 @@ import math
 from jax import numpy as jnp
 from jax import random
 from .network import Network, Parameter
-from ..func import matmul, matrix_transpose
+from .dropout import Dropout
+from ..func import matmul, matrix_transpose, squeeze
 
 
 def xavier2(m, n):
@@ -35,7 +36,10 @@ class Linear(Network):
         self.extra_name = extra_name
 
     def forward(self, x):
-        return matmul(x, matrix_transpose(self.weight)) + self.bias
+        out = matmul(x, matrix_transpose(self.weight))
+        if self.bias is not None:
+            out += self.bias
+        return out
 
     def set_weights(self, W: jnp.ndarray):
         assert W.shape == self.weight.val.shape
@@ -51,3 +55,17 @@ class LinearInitToOne(Linear):
         super(LinearInitToOne, self).__init__(input_size, output_size)
         self.weight = Parameter(jnp.ones(shape=(input_size, output_size)))
         self.bias = Parameter(jnp.ones(shape=(output_size,)))
+
+
+class LinearWithDropout(Network):
+    typename = "LinearWithDropout"
+
+    def __init__(self, input_size=32, output_size=1, dropout_prob=0.0):
+        super(LinearWithDropout, self).__init__()
+        self.dropout = Dropout(p=dropout_prob)
+        self.linear = Linear(input_size, output_size=output_size, bias=False, name="ff1")
+
+    def forward(self, x):
+        out = self.dropout(x)
+        out = self.linear(x)
+        return squeeze(out)

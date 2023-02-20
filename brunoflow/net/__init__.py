@@ -13,5 +13,6 @@ from .dropout import *
 from .embedding import *
 from .layernorm import *
 from .linear import *
+from .logreg import *
 from .mlp import *
 from .utils import *
