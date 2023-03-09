@@ -18,10 +18,10 @@ def xavier1(n):
 class LogReg(Network):
     typename = "LogReg"
 
-    def __init__(self, input_size=30, output_size=2, dropout_prob=0.0):
+    def __init__(self, input_size=30, output_size=2, dropout_prob=0.0, bias=True):
         super(LogReg, self).__init__()
         self.dropout = Dropout(p=dropout_prob)
-        self.linear = Linear(input_size, output_size=output_size, name="ff1")
+        self.linear = Linear(input_size, output_size=output_size, bias=bias, name="ff1")
 
     def forward(self, x):
         out = self.dropout(x)
