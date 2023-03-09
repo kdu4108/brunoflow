@@ -387,7 +387,7 @@ class Node:
         assert (self.max_grad_of_output_wrt_node[0] >= self.max_neg_grad_of_output_wrt_node[0]).all()
 
         # Multiply the max pos grad of self w.r.t. output by the local derivative for each input val
-        adjoints_max_grad = backward_func(
+        adjoints_max_grad, max_grad_col = backward_func(
             self.val,
             dict(out_max_pos_grad=self.max_grad_of_output_wrt_node[0]),
             *input_vals,
@@ -395,7 +395,7 @@ class Node:
         )
 
         # Multiply the max neg grad of self w.r.t. output by the local derivative for each input val
-        adjoints_max_neg_grad = backward_func(
+        adjoints_max_neg_grad, max_neg_grad_col = backward_func(
             self.val,
             dict(out_max_neg_grad=self.max_neg_grad_of_output_wrt_node[0]),
             *input_vals,

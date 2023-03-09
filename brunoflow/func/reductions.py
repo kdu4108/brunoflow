@@ -90,6 +90,7 @@ def reduce_max_backward(out_val, out_grad, x, axis=None):
         min_index = jnp.unravel_index(min_index, x.shape)
         grad = grad.at[min_index].set(out_grad)
     else:
+        # TODO(KD): maybe if we break up matmul into einsum and then reduce max, it'll easily tell us which columns carry the max grad?
         min_indices = jnp.argmax(x, axis)
         min_indices = jnp.expand_dims(min_indices, axis)
         out_grad = jnp.expand_dims(out_grad, axis)
