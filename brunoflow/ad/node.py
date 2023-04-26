@@ -241,9 +241,23 @@ class Node:
 
             return new_nodes, new_edges
 
+        def convert_nodes_and_edges_to_json(nodes, edges):
+            new_nodes = [
+                {"id": node.id, "name": node.name, "val": float(node.max_grad_of_output_wrt_node[0].mean().__array__())}
+                for node in nodes
+            ]
+            new_edges = [{edge[0].id: edge[1].id} for edge in edges]
+            import json
+
+            with open("nodes.json", "w") as f:
+                json.dump(new_nodes, f)
+            with open("edges.json", "w") as f:
+                json.dump(new_edges, f)
+
         if collapse_to_modules:
             nodes, edges = collapse_nodes_to_modules(nodes, edges)
 
+        convert_nodes_and_edges_to_json(nodes, edges)
         # G.add_nodes_from(nodes)
         G.add_nodes_from(
             [
