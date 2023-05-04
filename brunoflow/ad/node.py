@@ -137,7 +137,12 @@ class Node:
         return nodes, edges
 
     def visualize(
-        self, save_path="graph.png", vals_to_include={"grad", "entropy"}, shape_only=True, collapse_to_modules=False
+        self,
+        save_path="graph.png",
+        vals_to_include={"grad", "entropy"},
+        shape_only=True,
+        collapse_to_modules=False,
+        draw_graph=True,
     ):
         import matplotlib.pyplot as plt
 
@@ -254,10 +259,12 @@ class Node:
             with open("edges.json", "w") as f:
                 json.dump(new_edges, f)
 
+            return new_nodes, new_edges
+
         if collapse_to_modules:
             nodes, edges = collapse_nodes_to_modules(nodes, edges)
 
-        convert_nodes_and_edges_to_json(nodes, edges)
+        new_nodes, new_edges = convert_nodes_and_edges_to_json(nodes, edges)
         # G.add_nodes_from(nodes)
         G.add_nodes_from(
             [
@@ -268,11 +275,14 @@ class Node:
         # G.add_edges_from([(e1, e2, {"label": construct_edge_label(e1, e2)}) for (e1, e2) in edges])  # [(n1.get_id(), n2.get_id()) for n1, n2 in edges])
         G.add_edges_from(edges)
 
-        G = nx.nx_agraph.to_agraph(G)
-        # for i in range(len(G.nodes())):
-        #     G.nodes()[i].attr["label"] = get_label_from_pygraph_node(G.nodes()[i])
-        G.layout(prog="dot")
-        G.draw(path=save_path)
+        if draw_graph:
+            G = nx.nx_agraph.to_agraph(G)
+            # for i in range(len(G.nodes())):
+            #     G.nodes()[i].attr["label"] = get_label_from_pygraph_node(G.nodes()[i])
+            G.layout(prog="dot")
+            G.draw(path=save_path)
+
+        return new_nodes, new_edges
 
     def set_name(self, new_name: str):
         self.name = new_name
